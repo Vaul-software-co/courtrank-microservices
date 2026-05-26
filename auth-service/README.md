@@ -164,42 +164,376 @@ Expected:
 {"status":"UP"}
 ```
 
-## Main HTTP Routes
+## API Contract
 
-Public routes that require `x-api-key`:
+Public auth routes require:
 
-```txt
-POST /auth/signup
-POST /auth/signin
-POST /auth/refresh
-POST /auth/verify-email
-POST /auth/verify-email/confirm
-POST /auth/resend-verification-email
-POST /auth/verify-email/resend
-POST /auth/request-password-reset
-POST /auth/password-reset/request
-POST /auth/verify-password-otp
-POST /auth/password-reset/verify
-POST /auth/reset-password
-PUT  /auth/password-reset/confirm
+```http
+x-api-key: <web-or-mobile-api-key>
+Content-Type: application/json
 ```
 
-Logout accepts refresh token from cookie/body/query depending on client:
+Authenticated routes require either the web `token` cookie or:
 
-```txt
-POST   /auth/logout
-DELETE /auth/logout
+```http
+Authorization: Bearer <access-token>
 ```
 
-Authenticated routes:
+### POST /auth/signup
 
-```txt
-POST   /auth/change-password
-DELETE /auth/me
-GET    /auth/sessions
-DELETE /auth/sessions/{sessionId}
-DELETE /auth/sessions
+Creates an authentication record and sends the verification email.
+
+Request:
+
+```json
+{
+  "name": "Sebastian Sanchez",
+  "username": "sebas",
+  "email": "test@example.com",
+  "password": "Password1!",
+  "terms": true,
+  "termsVersion": "2026-01",
+  "commercial": false
+}
 ```
+
+Accepted aliases:
+
+- `terms`: `isTerms`, `acceptedTerms`
+- `termsVersion`: `acceptedTermsVersion`
+- `commercial`: `isCommercial`, `acceptedDataCommercialization`
+
+Response `201`:
+
+```json
+{
+  "message": "User registered. Check your email to verify your account."
+}
+```
+
+### POST /auth/signin
+
+Authenticates the user and creates a refresh session.
+
+Request:
+
+```json
+{
+  "email": "test@example.com",
+  "password": "Password1!"
+}
+```
+
+Web response `200`:
+
+```json
+{
+  "message": "Login successful"
+}
+```
+
+If the user has a default club, web response can include:
+
+```json
+{
+  "message": "Login successful",
+  "clubId": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+Web also receives HTTP-only cookies:
+
+- `token`
+- `refreshToken`
+
+Mobile response `200`:
+
+```json
+{
+  "token": "<access-token>",
+  "refreshToken": "<refresh-token>"
+}
+```
+
+### POST /auth/refresh
+
+Rotates the refresh session and returns a new access/refresh pair.
+
+Request can use the `refreshToken` cookie or body:
+
+```json
+{
+  "refreshToken": "<refresh-token>"
+}
+```
+
+Web response `200`:
+
+```json
+{
+  "message": "Login successful"
+}
+```
+
+Web also receives new `token` and `refreshToken` cookies.
+
+Mobile response `200`:
+
+```json
+{
+  "token": "<access-token>",
+  "refreshToken": "<refresh-token>"
+}
+```
+
+### POST /auth/logout
+
+### DELETE /auth/logout
+
+Revokes a refresh session and clears auth cookies for web clients.
+
+Request can use `refreshToken` cookie, query parameter, or body:
+
+```json
+{
+  "refreshToken": "<refresh-token>"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "message": "Logout successful"
+}
+```
+
+### POST /auth/resend-verification-email
+
+### POST /auth/verify-email/resend
+
+Resends the account verification email.
+
+Request:
+
+```json
+{
+  "email": "test@example.com",
+  "lang": "es"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "message": "Verification email sent"
+}
+```
+
+### POST /auth/verify-email
+
+### POST /auth/verify-email/confirm
+
+Verifies an account email.
+
+Request:
+
+```json
+{
+  "userId": "00000000-0000-0000-0000-000000000000",
+  "token": "<verification-token>",
+  "password": "Password1!"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "message": "Email verified"
+}
+```
+
+### POST /auth/request-password-reset
+
+### POST /auth/password-reset/request
+
+Requests a password reset OTP email.
+
+Request:
+
+```json
+{
+  "email": "test@example.com",
+  "lang": "es"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "message": "If the email exists, you will receive a code"
+}
+```
+
+### POST /auth/verify-password-otp
+
+### POST /auth/password-reset/verify
+
+Verifies the password reset OTP and creates a short-lived reset token.
+
+Request:
+
+```json
+{
+  "email": "test@example.com",
+  "otp": "123456"
+}
+```
+
+Web response `200`:
+
+```json
+{
+  "message": "OTP verified"
+}
+```
+
+Web also receives an HTTP-only `resetToken` cookie.
+
+Mobile response `200`:
+
+```json
+{
+  "message": "OTP verified",
+  "resetToken": "<password-reset-token>"
+}
+```
+
+### POST /auth/reset-password
+
+### PUT /auth/password-reset/confirm
+
+Confirms password reset and updates the password.
+
+Request can use the `resetToken` cookie or body:
+
+```json
+{
+  "newPassword": "NewPassword1!",
+  "resetToken": "<password-reset-token>"
+}
+```
+
+For web, `resetToken` is normally read from the HTTP-only cookie.
+
+Response `200`:
+
+```json
+{
+  "message": "Password updated successfully"
+}
+```
+
+### POST /auth/change-password
+
+Changes the password for the authenticated user.
+
+Request:
+
+```json
+{
+  "oldPassword": "OldPassword1!",
+  "newPassword": "NewPassword1!"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "message": "Password updated successfully"
+}
+```
+
+### DELETE /auth/me
+
+Soft deletes the authenticated user.
+
+Response `200`:
+
+```json
+{
+  "message": "User deleted"
+}
+```
+
+### GET /auth/sessions
+
+Lists active sessions for the authenticated user.
+
+Response `200`:
+
+```json
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "client": "web",
+    "ip": "127.0.0.1",
+    "userAgent": "Safari",
+    "createdAt": "2026-05-26T20:00:00Z",
+    "expiresAt": "2026-06-02T20:00:00Z"
+  }
+]
+```
+
+### DELETE /auth/sessions/{sessionId}
+
+Revokes one session for the authenticated user.
+
+Response `200`:
+
+```json
+{
+  "message": "Session revoked"
+}
+```
+
+### DELETE /auth/sessions
+
+Revokes all sessions for the authenticated user.
+
+Response `200`:
+
+```json
+{
+  "message": "Sessions revoked"
+}
+```
+
+### Common Errors
+
+Examples:
+
+```json
+{ "error": "Invalid API key" }
+```
+
+```json
+{ "error": "Authentication required" }
+```
+
+```json
+{ "error": "Access denied" }
+```
+
+```json
+{ "error": "Too many requests" }
+```
+
+Validation errors return `400` with an `error` field and field-level details when available.
 
 ## Web And Mobile Token Behavior
 
