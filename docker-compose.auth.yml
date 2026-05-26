@@ -59,6 +59,7 @@ services:
     env_file:
       - ./auth-service/.env
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local,kafka}
       SERVER_PORT: 8080
       DATABASE_URL: jdbc:postgresql://auth-postgres:5432/courtrank_auth
       DATABASE_USERNAME: courtrank_auth_user
