@@ -1,0 +1,18 @@
+package com.example.authService.application.events;
+
+import com.example.authService.domain.enums.UserRole;
+
+import java.time.Instant;
+import java.util.UUID;
+
+public record UserRegisteredEvent(
+        UUID id,
+        String email,
+        String name,
+        String username,
+        UserRole role,
+        String acceptedTermsVersion,
+        boolean acceptedDataCommercialization,
+        Instant occurredAt
+) {
+}
