@@ -8,6 +8,7 @@ import com.example.authService.application.ports.AuthEventPublisher;
 import com.example.authService.application.ports.audit.AuditEvent;
 import com.example.authService.application.ports.audit.AuditEventType;
 import com.example.authService.application.ports.audit.AuditLogger;
+import com.example.authService.application.ports.user.UsernameAvailabilityVerifier;
 import com.example.authService.domain.entity.Authentication;
 import com.example.authService.domain.exceptions.ConflictException;
 import com.example.authService.domain.exceptions.MissedTermsAndConditionsException;
@@ -23,6 +24,7 @@ public class SignUpUseCase {
     private final AuthenticationRepository authRepository;
     private final PasswordHasher passwordHasher;
     private final AuthEventPublisher eventPublisher;
+    private final UsernameAvailabilityVerifier usernameAvailabilityVerifier;
     private final PasswordPolicy passwordPolicy;
     private final AuditLogger auditLogger;
 
@@ -30,12 +32,14 @@ public class SignUpUseCase {
             AuthenticationRepository authRepository,
             PasswordHasher passwordHasher,
             AuthEventPublisher eventPublisher,
+            UsernameAvailabilityVerifier usernameAvailabilityVerifier,
             PasswordPolicy passwordPolicy,
             AuditLogger auditLogger
     ){
         this.authRepository = authRepository;
         this.passwordHasher = passwordHasher;
         this.eventPublisher = eventPublisher;
+        this.usernameAvailabilityVerifier = usernameAvailabilityVerifier;
         this.passwordPolicy = passwordPolicy;
         this.auditLogger = auditLogger;
     }
@@ -79,6 +83,10 @@ public class SignUpUseCase {
             auth = Authentication.create(request.email(), passwordHash, http.type());
             eventType = AuditEventType.AUTH_SIGN_UP_SUCCESS;
             restored = false;
+        }
+
+        if (request.username() != null && !request.username().isBlank()) {
+            this.usernameAvailabilityVerifier.assertAvailable(request.username(), auth.getId());
         }
 
         if (request.isCommercial()) {

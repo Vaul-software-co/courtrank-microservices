@@ -9,6 +9,7 @@ import com.example.authService.application.ports.audit.AuditEvent;
 import com.example.authService.application.ports.audit.AuditEventType;
 import com.example.authService.application.ports.audit.AuditLogger;
 import com.example.authService.application.ports.security.PasswordHasher;
+import com.example.authService.application.ports.user.UsernameAvailabilityVerifier;
 import com.example.authService.application.useCases.SignUpUseCase;
 import com.example.authService.domain.entity.Authentication;
 import com.example.authService.domain.enums.UserRole;
@@ -47,6 +48,9 @@ public class SignUpUseCaseTest {
 
     @Mock
     AuthEventPublisher eventPublisher;
+
+    @Mock
+    UsernameAvailabilityVerifier usernameAvailabilityVerifier;
 
     @Mock
     PasswordPolicy passwordPolicy;
@@ -105,6 +109,7 @@ public class SignUpUseCaseTest {
         verify(this.auditLogger).log(auditCaptor.capture());
 
         Authentication savedAuth = authCaptor.getValue();
+        verify(this.usernameAvailabilityVerifier).assertAvailable(USERNAME, savedAuth.getId());
         assertEquals(EMAIL, savedAuth.getEmail());
         assertEquals(PASSWORD_HASH, savedAuth.getPasswordHash());
         assertEquals(UserRole.MEMBER, savedAuth.getRole());
@@ -143,6 +148,7 @@ public class SignUpUseCaseTest {
         verifyNoInteractions(this.passwordHasher);
         verifyNoInteractions(this.authRepository);
         verifyNoInteractions(this.eventPublisher);
+        verifyNoInteractions(this.usernameAvailabilityVerifier);
         verifyNoInteractions(this.auditLogger);
     }
 
@@ -163,6 +169,7 @@ public class SignUpUseCaseTest {
         verifyNoInteractions(this.passwordHasher);
         verifyNoInteractions(this.authRepository);
         verifyNoInteractions(this.eventPublisher);
+        verifyNoInteractions(this.usernameAvailabilityVerifier);
         verifyNoInteractions(this.auditLogger);
     }
 
@@ -187,6 +194,7 @@ public class SignUpUseCaseTest {
         verify(this.passwordHasher).hashPassword(PASSWORD);
         verify(this.authRepository, never()).save(org.mockito.ArgumentMatchers.any());
         verifyNoInteractions(this.eventPublisher);
+        verifyNoInteractions(this.usernameAvailabilityVerifier);
         verify(this.auditLogger).log(auditCaptor.capture());
 
         AuditEvent auditEvent = auditCaptor.getValue();
@@ -219,6 +227,7 @@ public class SignUpUseCaseTest {
         assertFalse(existingAuth.isDataAccepted());
 
         verify(this.authRepository).save(existingAuth);
+        verify(this.usernameAvailabilityVerifier).assertAvailable(USERNAME, existingAuth.getId());
         verify(this.eventPublisher).publishUserRestored(eventCaptor.capture());
         verify(this.eventPublisher, never()).publishUserRegistered(org.mockito.ArgumentMatchers.any());
         verify(this.auditLogger).log(auditCaptor.capture());

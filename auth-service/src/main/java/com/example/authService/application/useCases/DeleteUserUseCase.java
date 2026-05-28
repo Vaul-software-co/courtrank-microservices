@@ -1,6 +1,8 @@
 package com.example.authService.application.useCases;
 
 import com.example.authService.application.dto.DeleteUserRequest;
+import com.example.authService.application.events.UserDeletedEvent;
+import com.example.authService.application.ports.AuthEventPublisher;
 import com.example.authService.application.ports.audit.AuditEvent;
 import com.example.authService.application.ports.audit.AuditEventType;
 import com.example.authService.application.ports.audit.AuditLogger;
@@ -16,11 +18,18 @@ public class DeleteUserUseCase {
 
     private final AuthenticationRepository authenticationRepository;
     private final SessionRepository sessionRepository;
+    private final AuthEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
-    public  DeleteUserUseCase(AuthenticationRepository authenticationRepository, SessionRepository sessionRepository, AuditLogger auditLogger){
+    public  DeleteUserUseCase(
+            AuthenticationRepository authenticationRepository,
+            SessionRepository sessionRepository,
+            AuthEventPublisher eventPublisher,
+            AuditLogger auditLogger
+    ){
         this.authenticationRepository = authenticationRepository;
         this.sessionRepository = sessionRepository;
+        this.eventPublisher = eventPublisher;
         this.auditLogger = auditLogger;
     }
 
@@ -34,6 +43,11 @@ public class DeleteUserUseCase {
 
         this.authenticationRepository.save(auth);
         this.sessionRepository.revokeAllByUserId(auth.getId());
+        this.eventPublisher.publishUserDeleted(new UserDeletedEvent(
+                auth.getId(),
+                auth.getEmail(),
+                Instant.now()
+        ));
         this.auditLogger.log(new AuditEvent(
                 AuditEventType.AUTH_USER_DELETED,
                 auth.getId(),

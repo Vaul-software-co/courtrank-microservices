@@ -1,6 +1,8 @@
 package com.example.authService.unit.application.useCases;
 
 import com.example.authService.application.dto.DeleteUserRequest;
+import com.example.authService.application.events.UserDeletedEvent;
+import com.example.authService.application.ports.AuthEventPublisher;
 import com.example.authService.application.ports.audit.AuditLogger;
 import com.example.authService.application.useCases.DeleteUserUseCase;
 import com.example.authService.domain.entity.Authentication;
@@ -11,6 +13,7 @@ import com.example.authService.domain.repository.SessionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,6 +36,9 @@ public class DeleteUserUseCaseTest {
 
     @Mock
     SessionRepository sessionRepository;
+
+    @Mock
+    AuthEventPublisher eventPublisher;
 
     @Mock
     AuditLogger auditLogger;
@@ -66,6 +72,14 @@ public class DeleteUserUseCaseTest {
         assertNotNull(auth.getDeletedAt());
         verify(this.authenticationRepository).save(auth);
         verify(this.sessionRepository).revokeAllByUserId(auth.getId());
+
+        ArgumentCaptor<UserDeletedEvent> eventCaptor = ArgumentCaptor.forClass(UserDeletedEvent.class);
+        verify(this.eventPublisher).publishUserDeleted(eventCaptor.capture());
+
+        UserDeletedEvent event = eventCaptor.getValue();
+        assertTrue(event.id().equals(auth.getId()));
+        assertTrue(event.email().equals(auth.getEmail()));
+        assertNotNull(event.occurredAt());
     }
 
     @Test
@@ -83,6 +97,7 @@ public class DeleteUserUseCaseTest {
         verify(this.authenticationRepository).findById(userId);
         verify(this.authenticationRepository, never()).save(org.mockito.ArgumentMatchers.any());
         verifyNoInteractions(this.sessionRepository);
+        verifyNoInteractions(this.eventPublisher);
     }
 
     @Test
@@ -99,5 +114,6 @@ public class DeleteUserUseCaseTest {
         verify(this.authenticationRepository).findById(auth.getId());
         verify(this.authenticationRepository, never()).save(auth);
         verifyNoInteractions(this.sessionRepository);
+        verifyNoInteractions(this.eventPublisher);
     }
 }

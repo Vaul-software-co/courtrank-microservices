@@ -6,6 +6,7 @@ import com.example.authService.domain.exceptions.EmailNotVerifiedException;
 import com.example.authService.domain.exceptions.ForbiddenException;
 import com.example.authService.domain.exceptions.InvalidCredentialsException;
 import com.example.authService.domain.exceptions.MissedTermsAndConditionsException;
+import com.example.authService.domain.exceptions.UserServiceUnavailableException;
 import com.example.authService.domain.exceptions.WeakPasswordException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,6 +44,11 @@ public class HttpExceptionHandler {
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<Map<String, String>> forbidden(ForbiddenException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", exception.getMessage()));
+    }
+
+    @ExceptionHandler(UserServiceUnavailableException.class)
+    public ResponseEntity<Map<String, String>> serviceUnavailable(UserServiceUnavailableException exception) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", exception.getMessage()));
     }
 
     @ExceptionHandler({

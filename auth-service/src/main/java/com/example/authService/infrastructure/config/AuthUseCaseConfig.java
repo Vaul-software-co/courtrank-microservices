@@ -6,6 +6,7 @@ import com.example.authService.application.ports.authorization.WorkerAccessVerif
 import com.example.authService.application.ports.security.PasswordHasher;
 import com.example.authService.application.ports.security.TokenHasher;
 import com.example.authService.application.ports.security.TokenService;
+import com.example.authService.application.ports.user.UsernameAvailabilityVerifier;
 import com.example.authService.application.useCases.DeleteUserUseCase;
 import com.example.authService.application.useCases.SignInUseCase;
 import com.example.authService.application.useCases.SignUpUseCase;
@@ -44,6 +45,7 @@ public class AuthUseCaseConfig {
             AuthenticationRepository authenticationRepository,
             PasswordHasher passwordHasher,
             AuthEventPublisher authEventPublisher,
+            UsernameAvailabilityVerifier usernameAvailabilityVerifier,
             PasswordPolicy passwordPolicy,
             AuditLogger auditLogger
     ){
@@ -51,6 +53,7 @@ public class AuthUseCaseConfig {
                 authenticationRepository,
                 passwordHasher,
                 authEventPublisher,
+                usernameAvailabilityVerifier,
                 passwordPolicy,
                 auditLogger
         );
@@ -60,11 +63,13 @@ public class AuthUseCaseConfig {
     public DeleteUserUseCase deleteUserUseCase(
             AuthenticationRepository authenticationRepository,
             SessionRepository sessionRepository,
+            AuthEventPublisher authEventPublisher,
             AuditLogger auditLogger
     ){
         return new DeleteUserUseCase(
                 authenticationRepository,
                 sessionRepository,
+                authEventPublisher,
                 auditLogger
         );
     }

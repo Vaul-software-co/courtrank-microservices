@@ -1,5 +1,6 @@
 package com.example.authService.infrastructure.events;
 
+import com.example.authService.application.events.UserDeletedEvent;
 import com.example.authService.application.events.UserRegisteredEvent;
 import com.example.authService.application.events.UserRestoredEvent;
 import com.example.authService.application.ports.AuthEventPublisher;
@@ -17,5 +18,10 @@ public class ConsoleAuthEventPublisher implements AuthEventPublisher {
     @Override
     public void publishUserRestored(UserRestoredEvent event) {
         logger.info("auth event user_restored userId={} email={}", event.id(), event.email());
+    }
+
+    @Override
+    public void publishUserDeleted(UserDeletedEvent event) {
+        logger.info("auth event user_deleted userId={} email={}", event.id(), event.email());
     }
 }

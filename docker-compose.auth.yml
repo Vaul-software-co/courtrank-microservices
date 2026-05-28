@@ -17,6 +17,24 @@ services:
       timeout: 5s
       retries: 5
 
+  user-postgres:
+    image: postgres:16-alpine
+    container_name: courtrank-user-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: courtrank_users
+      POSTGRES_USER: courtrank_user_user
+      POSTGRES_PASSWORD: ${USER_DATABASE_PASSWORD:?USER_DATABASE_PASSWORD is required}
+    ports:
+      - "5434:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U courtrank_user_user -d courtrank_users"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   kafka:
     image: apache/kafka:3.7.1
     container_name: courtrank-kafka
@@ -38,6 +56,22 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
+  kafka-init:
+    image: apache/kafka:3.7.1
+    container_name: courtrank-kafka-init
+    depends_on:
+      kafka:
+        condition: service_started
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list >/dev/null 2>&1; do
+        sleep 2;
+      done;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic auth.events --partitions 1 --replication-factor 1;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic audit.events --partitions 1 --replication-factor 1;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic user.events --partitions 1 --replication-factor 1;"
+    restart: "no"
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: courtrank-kafka-ui
@@ -48,7 +82,8 @@ services:
       KAFKA_CLUSTERS_0_NAME: courtrank-local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
     depends_on:
-      - kafka
+      kafka-init:
+        condition: service_completed_successfully
 
   auth-service:
     build:
@@ -66,6 +101,8 @@ services:
       DATABASE_PASSWORD: ${AUTH_DATABASE_PASSWORD:?AUTH_DATABASE_PASSWORD is required}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       WORKER_ACCESS_SERVICE_URL: ${WORKER_ACCESS_SERVICE_URL:-http://host.docker.internal:4000/internal}
+      USER_SERVICE_URL: http://user-service:8082/internal
+      USER_SERVICE_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY is required}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -75,6 +112,37 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+
+  user-service:
+    build:
+      context: ./user-service
+    image: courtrank-user:latest
+    container_name: courtrank-user
+    restart: unless-stopped
+    env_file:
+      - ./user-service/.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local,kafka}
+      SERVER_PORT: 8082
+      DATABASE_URL: jdbc:postgresql://user-postgres:5432/courtrank_users
+      DATABASE_USERNAME: courtrank_user_user
+      DATABASE_PASSWORD: ${USER_DATABASE_PASSWORD:?USER_DATABASE_PASSWORD is required}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY is required}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_USER_EVENTS_TOPIC: user.events
+      KAFKA_AUDIT_EVENTS_TOPIC: audit.events
+    ports:
+      - "8082:8082"
+    depends_on:
+      user-postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
 
 volumes:
   auth_postgres_data:
+  user_postgres_data:

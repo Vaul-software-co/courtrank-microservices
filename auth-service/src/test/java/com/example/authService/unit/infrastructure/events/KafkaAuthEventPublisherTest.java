@@ -1,5 +1,6 @@
 package com.example.authService.unit.infrastructure.events;
 
+import com.example.authService.application.events.UserDeletedEvent;
 import com.example.authService.application.events.UserRegisteredEvent;
 import com.example.authService.application.events.UserRestoredEvent;
 import com.example.authService.domain.enums.UserRole;
@@ -72,6 +73,28 @@ public class KafkaAuthEventPublisherTest {
 
         JsonNode json = objectMapper.readTree(payload.getValue());
         assertEquals("USER_RESTORED", json.get("eventType").asText());
+        assertEquals(userId.toString(), json.get("aggregateId").asText());
+        assertEquals("test@test.com", json.get("payload").get("email").asText());
+    }
+
+    @Test
+    void publishUserDeleted_shouldSendUserDeletedEventToKafka() throws Exception {
+        KafkaTemplate<String, String> kafkaTemplate = mock(KafkaTemplate.class);
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        KafkaAuthEventPublisher publisher = new KafkaAuthEventPublisher(kafkaTemplate, objectMapper, TOPIC);
+        UUID userId = UUID.randomUUID();
+
+        publisher.publishUserDeleted(new UserDeletedEvent(
+                userId,
+                "test@test.com",
+                Instant.parse("2026-01-01T00:00:00Z")
+        ));
+
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(kafkaTemplate).send(eq(TOPIC), eq(userId.toString()), payload.capture());
+
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertEquals("USER_DELETED", json.get("eventType").asText());
         assertEquals(userId.toString(), json.get("aggregateId").asText());
         assertEquals("test@test.com", json.get("payload").get("email").asText());
     }
