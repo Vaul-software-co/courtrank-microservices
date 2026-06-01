@@ -2,6 +2,7 @@ package com.example.userService.infrastructure.events;
 
 import com.example.userService.application.dto.CreateUserRequest;
 import com.example.userService.application.useCases.CreateUserFromAuthEventUseCase;
+import com.example.userService.application.useCases.DeleteUserFromAuthEventUseCase;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,16 +20,19 @@ public class AuthEventConsumer {
     private static final Logger logger = LoggerFactory.getLogger(AuthEventConsumer.class);
     private static final String USER_REGISTERED = "USER_REGISTERED";
     private static final String USER_RESTORED = "USER_RESTORED";
+    private static final String USER_DELETED = "USER_DELETED";
 
     private final ObjectMapper objectMapper;
     private final CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase;
+    private final DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase;
 
     public AuthEventConsumer(
             ObjectMapper objectMapper,
-            CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase
+            CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase, DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase
     ) {
         this.objectMapper = objectMapper;
         this.createUserFromAuthEventUseCase = createUserFromAuthEventUseCase;
+        this.deleteUserFromAuthEventUseCase = deleteUserFromAuthEventUseCase;
     }
 
     @KafkaListener(
@@ -46,6 +50,23 @@ public class AuthEventConsumer {
                     event.aggregateId()
             );
             this.createUserFromAuthEventUseCase.execute(this.toCreateUserRequest(event.payload()));
+            logger.info(
+                    "Processed auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            return;
+        }
+
+        if (USER_DELETED.equals(event.eventType())) {
+            logger.info(
+                    "Processing auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            this.deleteUserFromAuthEventUseCase.execute(event.aggregateId());
             logger.info(
                     "Processed auth event type={} eventId={} aggregateId={}",
                     event.eventType(),

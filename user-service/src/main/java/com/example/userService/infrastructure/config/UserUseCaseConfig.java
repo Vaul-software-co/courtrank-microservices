@@ -4,6 +4,7 @@ import com.example.userService.application.ports.UserEventPublisher;
 import com.example.userService.application.ports.audit.UserAuditLogger;
 import com.example.userService.application.useCases.CheckUsernameAvailabilityUseCase;
 import com.example.userService.application.useCases.CreateUserFromAuthEventUseCase;
+import com.example.userService.application.useCases.DeleteUserFromAuthEventUseCase;
 import com.example.userService.domain.repository.UserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,5 +23,13 @@ public class UserUseCaseConfig {
             UserEventPublisher eventPublisher
     ) {
         return new CreateUserFromAuthEventUseCase(userRepository, auditLogger, eventPublisher);
+    }
+
+    @Bean
+    public DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase(
+            UserRepository userRepository,
+            UserAuditLogger auditLogger
+    ) {
+        return new DeleteUserFromAuthEventUseCase(userRepository, auditLogger);
     }
 }
