@@ -37,6 +37,10 @@ public class RsaJwtTokenService implements TokenService {
 
     @Override
     public String generateToken(UUID id, TokenType type) {
+        if (type == TokenType.REFRESH) {
+            return this.generateSignedToken(id, type, null, UUID.randomUUID(), null);
+        }
+
         return this.generateToken(id, type, null);
     }
 

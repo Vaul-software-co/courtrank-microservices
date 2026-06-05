@@ -15,6 +15,8 @@ import com.example.authService.application.dto.RevokeSessionRequest;
 import com.example.authService.application.dto.SessionSummary;
 import com.example.authService.application.dto.SignInRequest;
 import com.example.authService.application.dto.SignUpRequest;
+import com.example.authService.application.dto.UpdateDataConsentRequest;
+import com.example.authService.application.dto.UpdateDataConsentResponse;
 import com.example.authService.application.dto.VerificationEmailRequest;
 import com.example.authService.application.dto.VerifyEmailRequest;
 import com.example.authService.application.dto.VerifyPasswordOtpRequest;
@@ -33,6 +35,7 @@ import com.example.authService.application.useCases.RevokeSessionUseCase;
 import com.example.authService.application.useCases.SendVerificationEmailUseCase;
 import com.example.authService.application.useCases.SignInUseCase;
 import com.example.authService.application.useCases.SignUpUseCase;
+import com.example.authService.application.useCases.UpdateDataConsentUseCase;
 import com.example.authService.application.useCases.VerifyEmailUseCase;
 import com.example.authService.application.useCases.VerifyPasswordOtpUseCase;
 import com.example.authService.domain.entity.Authentication;
@@ -85,6 +88,7 @@ public class AuthController {
     private final ResetPasswordUseCase resetPasswordUseCase;
     private final ChangePasswordUseCase changePasswordUseCase;
     private final DeleteUserUseCase deleteUserUseCase;
+    private final UpdateDataConsentUseCase updateDataConsentUseCase;
     private final ListSessionsUseCase listSessionsUseCase;
     private final RevokeSessionUseCase revokeSessionUseCase;
     private final RevokeAllSessionsUseCase revokeAllSessionsUseCase;
@@ -103,6 +107,7 @@ public class AuthController {
             ResetPasswordUseCase resetPasswordUseCase,
             ChangePasswordUseCase changePasswordUseCase,
             DeleteUserUseCase deleteUserUseCase,
+            UpdateDataConsentUseCase updateDataConsentUseCase,
             ListSessionsUseCase listSessionsUseCase,
             RevokeSessionUseCase revokeSessionUseCase,
             RevokeAllSessionsUseCase revokeAllSessionsUseCase,
@@ -120,6 +125,7 @@ public class AuthController {
         this.resetPasswordUseCase = resetPasswordUseCase;
         this.changePasswordUseCase = changePasswordUseCase;
         this.deleteUserUseCase = deleteUserUseCase;
+        this.updateDataConsentUseCase = updateDataConsentUseCase;
         this.listSessionsUseCase = listSessionsUseCase;
         this.revokeSessionUseCase = revokeSessionUseCase;
         this.revokeAllSessionsUseCase = revokeAllSessionsUseCase;
@@ -260,6 +266,17 @@ public class AuthController {
     public Map<String, String> deleteMe(@AuthenticationPrincipal AuthUserPrincipal principal) {
         this.deleteUserUseCase.execute(new DeleteUserRequest(principal.userId()));
         return Map.of("message", "User deleted");
+    }
+
+    @PostMapping("/me/data-consent")
+    public UpdateDataConsentResponse updateDataConsent(
+            @AuthenticationPrincipal AuthUserPrincipal principal,
+            @Valid @RequestBody DataConsentBody body
+    ) {
+        return this.updateDataConsentUseCase.execute(new UpdateDataConsentRequest(
+                principal.userId(),
+                body.accept()
+        ));
     }
 
     @GetMapping("/sessions")
@@ -409,5 +426,8 @@ public class AuthController {
             @NotBlank
             String newPassword
     ) {
+    }
+
+    public record DataConsentBody(boolean accept) {
     }
 }

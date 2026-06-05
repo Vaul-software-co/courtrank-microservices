@@ -1,0 +1,13 @@
+{
+  "name": "courtrank-db-studio",
+  "private": true,
+  "scripts": {
+    "pull:user": "prisma db pull --schema prisma/user.schema.prisma",
+    "pull:auth": "prisma db pull --schema prisma/auth.schema.prisma",
+    "studio:user": "prisma studio --schema prisma/user.schema.prisma --port 5555",
+    "studio:auth": "prisma studio --schema prisma/auth.schema.prisma --port 5556"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.0"
+  }
+}

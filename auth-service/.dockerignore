@@ -4,6 +4,8 @@
 
 .env
 .env.*
+*.pem
+src/main/resources/*.pem
 
 .idea
 .vscode

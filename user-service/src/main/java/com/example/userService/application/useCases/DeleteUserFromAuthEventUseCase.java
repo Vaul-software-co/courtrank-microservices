@@ -48,6 +48,7 @@ public class DeleteUserFromAuthEventUseCase {
             return;
         }
 
+        String releasedUsername = user.getUserName();
         user.markProfileAsDeleted();
         this.userRepository.save(user);
         this.auditLogger.log(new UserAuditEvent(
@@ -57,7 +58,7 @@ public class DeleteUserFromAuthEventUseCase {
                 null,
                 Map.of(
                         "email", user.getEmail(),
-                        "username", String.valueOf(user.getUserName())
+                        "releasedUsername", String.valueOf(releasedUsername)
                 ),
                 Instant.now()
         ));

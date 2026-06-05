@@ -276,6 +276,7 @@ public class User {
     }
 
     public void markProfileAsDeleted() {
+        this.userName = null;
         this.status = UserProfileStatus.DELETED;
         this.updatedAt = Instant.now();
     }

@@ -3,4 +3,6 @@ target
 .env
 .env.*
 !.env.example
+*.pem
+src/main/resources/*.pem
 .DS_Store

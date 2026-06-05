@@ -1,0 +1,234 @@
+services:
+  auth-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/auth-postgres.env
+    environment:
+      POSTGRES_DB: courtrank_auth
+      POSTGRES_USER: courtrank_auth_user
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U courtrank_auth_user -d courtrank_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  user-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/user-postgres.env
+    environment:
+      POSTGRES_DB: courtrank_users
+      POSTGRES_USER: courtrank_user_user
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U courtrank_user_user -d courtrank_users"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  kafka:
+    image: apache/kafka:3.7.1
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  kafka-init:
+    image: apache/kafka:3.7.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic auth.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic audit.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic user.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;"
+    restart: "no"
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${API_GATEWAY_PORT:-8080}:8080"
+    volumes:
+      - ./nginx/prod-api.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  legacy-sync-service:
+    image: ${LEGACY_SYNC_SERVICE_IMAGE:?Set LEGACY_SYNC_SERVICE_IMAGE}
+    restart: unless-stopped
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/legacy-sync-service.env
+    environment:
+      KAFKA_BROKERS: kafka:29092
+      AUTH_EVENTS_TOPIC: auth.events
+      USER_EVENTS_TOPIC: user.events
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+      user-postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  auth-service:
+    image: ${AUTH_SERVICE_IMAGE:?Set AUTH_SERVICE_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/auth-service.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,kafka}
+      SERVER_PORT: 8080
+      DATABASE_URL: jdbc:postgresql://auth-postgres:5432/courtrank_auth
+      DATABASE_USERNAME: courtrank_auth_user
+      JWT_PRIVATE_KEY: file:/run/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      USER_SERVICE_URL: http://user-service:8082/internal
+      WORKER_ACCESS_SERVICE_URL: ${WORKER_ACCESS_SERVICE_URL:?Set WORKER_ACCESS_SERVICE_URL}
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS}
+      COOKIE_SECURE: "true"
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-None}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:?Set COOKIE_DOMAIN}
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/jwt-private.pem
+        target: /run/secrets/jwt-private.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/jwt-public.pem
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  user-service:
+    image: ${USER_SERVICE_IMAGE:?Set USER_SERVICE_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/user-service.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,kafka}
+      SERVER_PORT: 8082
+      DATABASE_URL: jdbc:postgresql://user-postgres:5432/courtrank_users
+      DATABASE_USERNAME: courtrank_user_user
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      AUTH_SERVICE_URL: http://auth-service:8080/internal
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_USER_EVENTS_TOPIC: user.events
+      KAFKA_AUDIT_EVENTS_TOPIC: audit.events
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS}
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/jwt-public.pem
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    depends_on:
+      user-postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+volumes:
+  auth_postgres_data:
+  user_postgres_data:
+  kafka_data:

@@ -1,8 +1,10 @@
 package com.example.userService.infrastructure.events;
 
 import com.example.userService.application.dto.CreateUserRequest;
+import com.example.userService.application.dto.RestoreUserRequest;
 import com.example.userService.application.useCases.CreateUserFromAuthEventUseCase;
 import com.example.userService.application.useCases.DeleteUserFromAuthEventUseCase;
+import com.example.userService.application.useCases.RestoreUserFromAuthEventUseCase;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,14 +26,18 @@ public class AuthEventConsumer {
 
     private final ObjectMapper objectMapper;
     private final CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase;
+    private final RestoreUserFromAuthEventUseCase restoreUserFromAuthEventUseCase;
     private final DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase;
 
     public AuthEventConsumer(
             ObjectMapper objectMapper,
-            CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase, DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase
+            CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase,
+            RestoreUserFromAuthEventUseCase restoreUserFromAuthEventUseCase,
+            DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase
     ) {
         this.objectMapper = objectMapper;
         this.createUserFromAuthEventUseCase = createUserFromAuthEventUseCase;
+        this.restoreUserFromAuthEventUseCase = restoreUserFromAuthEventUseCase;
         this.deleteUserFromAuthEventUseCase = deleteUserFromAuthEventUseCase;
     }
 
@@ -42,7 +48,7 @@ public class AuthEventConsumer {
     public void consume(String message) {
         AuthEventMessage event = this.parse(message);
 
-        if (USER_REGISTERED.equals(event.eventType()) || USER_RESTORED.equals(event.eventType())) {
+        if (USER_REGISTERED.equals(event.eventType())) {
             logger.info(
                     "Processing auth event type={} eventId={} aggregateId={}",
                     event.eventType(),
@@ -50,6 +56,23 @@ public class AuthEventConsumer {
                     event.aggregateId()
             );
             this.createUserFromAuthEventUseCase.execute(this.toCreateUserRequest(event.payload()));
+            logger.info(
+                    "Processed auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            return;
+        }
+
+        if (USER_RESTORED.equals(event.eventType())) {
+            logger.info(
+                    "Processing auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            this.restoreUserFromAuthEventUseCase.execute(this.toRestoreUserRequest(event.payload()));
             logger.info(
                     "Processed auth event type={} eventId={} aggregateId={}",
                     event.eventType(),
@@ -89,6 +112,15 @@ public class AuthEventConsumer {
 
     private CreateUserRequest toCreateUserRequest(JsonNode payload) {
         return new CreateUserRequest(
+                UUID.fromString(payload.required("id").asText()),
+                payload.required("name").asText(),
+                this.nullableText(payload.get("username")),
+                payload.required("email").asText()
+        );
+    }
+
+    private RestoreUserRequest toRestoreUserRequest(JsonNode payload) {
+        return new RestoreUserRequest(
                 UUID.fromString(payload.required("id").asText()),
                 payload.required("name").asText(),
                 this.nullableText(payload.get("username")),

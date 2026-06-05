@@ -10,6 +10,7 @@ import com.example.authService.application.ports.user.UsernameAvailabilityVerifi
 import com.example.authService.application.useCases.DeleteUserUseCase;
 import com.example.authService.application.useCases.SignInUseCase;
 import com.example.authService.application.useCases.SignUpUseCase;
+import com.example.authService.application.useCases.UpdateDataConsentUseCase;
 import com.example.authService.domain.repository.AuthenticationRepository;
 import com.example.authService.domain.repository.SessionRepository;
 import com.example.authService.domain.service.PasswordPolicy;
@@ -72,5 +73,13 @@ public class AuthUseCaseConfig {
                 authEventPublisher,
                 auditLogger
         );
+    }
+
+    @Bean
+    public UpdateDataConsentUseCase updateDataConsentUseCase(
+            AuthenticationRepository authenticationRepository,
+            AuditLogger auditLogger
+    ) {
+        return new UpdateDataConsentUseCase(authenticationRepository, auditLogger);
     }
 }

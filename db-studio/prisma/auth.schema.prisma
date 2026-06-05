@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/auth"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("AUTH_DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model authentications {
+  id                       String                @id @db.Uuid
+  email                    String                @db.VarChar(255)
+  password_hash            String
+  role                     String                @db.VarChar(32)
+  is_email_verified        Boolean               @default(false)
+  is_active                Boolean               @default(true)
+  terms_version_accepted   String?               @db.VarChar(32)
+  terms_accepted_at        DateTime?             @db.Timestamptz(6)
+  data_consent_accepted_at DateTime?             @db.Timestamptz(6)
+  deleted_at               DateTime?             @db.Timestamptz(6)
+  created_at               DateTime              @db.Timestamptz(6)
+  updated_at               DateTime              @db.Timestamptz(6)
+  sessions                 sessions[]
+  verification_tokens      verification_tokens[]
+
+  @@index([deleted_at])
+}
+
+model flyway_schema_history {
+  installed_rank Int      @id(map: "flyway_schema_history_pk")
+  version        String?  @db.VarChar(50)
+  description    String   @db.VarChar(200)
+  type           String   @db.VarChar(20)
+  script         String   @db.VarChar(1000)
+  checksum       Int?
+  installed_by   String   @db.VarChar(100)
+  installed_on   DateTime @default(now()) @db.Timestamp(6)
+  execution_time Int
+  success        Boolean
+
+  @@index([success], map: "flyway_schema_history_s_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model sessions {
+  id                 String          @id @db.Uuid
+  user_id            String          @db.Uuid
+  refresh_token_hash String          @unique(map: "sessions_refresh_token_hash_unique_idx")
+  client             String          @db.VarChar(64)
+  ip                 String?         @db.VarChar(64)
+  user_agent         String?
+  replaced_by        String?         @db.Uuid
+  status             String          @db.VarChar(32)
+  revoked_at         DateTime?       @db.Timestamptz(6)
+  expires_at         DateTime        @db.Timestamptz(6)
+  created_at         DateTime        @db.Timestamptz(6)
+  sessions           sessions?       @relation("sessionsTosessions", fields: [replaced_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_sessions     sessions[]      @relation("sessionsTosessions")
+  authentications    authentications @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([expires_at])
+  @@index([user_id])
+  @@index([user_id, status])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model verification_tokens {
+  id              String          @id @db.Uuid
+  user_id         String          @db.Uuid
+  token_hash      String          @unique(map: "verification_tokens_token_hash_unique_idx")
+  type            String          @db.VarChar(64)
+  expires_at      DateTime        @db.Timestamptz(6)
+  used_at         DateTime?       @db.Timestamptz(6)
+  attempts        Int             @default(0)
+  created_at      DateTime        @db.Timestamptz(6)
+  authentications authentications @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([expires_at])
+  @@index([user_id, type])
+}

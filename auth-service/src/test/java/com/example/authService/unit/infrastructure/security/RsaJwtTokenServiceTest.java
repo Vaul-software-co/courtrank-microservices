@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -30,9 +31,24 @@ public class RsaJwtTokenServiceTest {
         UUID userId = UUID.randomUUID();
 
         String token = service.generateToken(userId, TokenType.REFRESH);
+        Map<String, Object> payload = this.parsePayload(token);
 
         assertTrue(service.verifyRefresh(token));
         assertEquals(userId, service.getTokenId(token));
+        assertTrue(payload.get("jti") instanceof String);
+    }
+
+    @Test
+    void generateToken_shouldCreateUniqueRefreshTokensForSameUser() throws Exception {
+        RsaJwtTokenService service = this.createService(this.generateKeyPair());
+        UUID userId = UUID.randomUUID();
+
+        String firstToken = service.generateToken(userId, TokenType.REFRESH);
+        String secondToken = service.generateToken(userId, TokenType.REFRESH);
+
+        assertNotEquals(firstToken, secondToken);
+        assertTrue(service.verifyRefresh(firstToken));
+        assertTrue(service.verifyRefresh(secondToken));
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.example.authService.application.dto.LogoutRequest;
 import com.example.authService.application.dto.SessionSummary;
 import com.example.authService.application.dto.SignInRequest;
 import com.example.authService.application.dto.SignUpRequest;
+import com.example.authService.application.dto.UpdateDataConsentResponse;
 import com.example.authService.application.dto.VerificationEmailRequest;
 import com.example.authService.application.dto.VerifyPasswordOtpRequest;
 import com.example.authService.application.dto.VerifyPasswordOtpResponse;
@@ -25,6 +26,7 @@ import com.example.authService.application.useCases.RevokeSessionUseCase;
 import com.example.authService.application.useCases.SendVerificationEmailUseCase;
 import com.example.authService.application.useCases.SignInUseCase;
 import com.example.authService.application.useCases.SignUpUseCase;
+import com.example.authService.application.useCases.UpdateDataConsentUseCase;
 import com.example.authService.application.useCases.VerifyEmailUseCase;
 import com.example.authService.application.useCases.VerifyPasswordOtpUseCase;
 import com.example.authService.domain.entity.Authentication;
@@ -126,6 +128,9 @@ public class AuthControllerIntegrationTest {
 
     @MockitoBean
     DeleteUserUseCase deleteUserUseCase;
+
+    @MockitoBean
+    UpdateDataConsentUseCase updateDataConsentUseCase;
 
     @MockitoBean
     ListSessionsUseCase listSessionsUseCase;
@@ -447,6 +452,21 @@ public class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.error").value("Validation failed"))
                 .andExpect(jsonPath("$.fields.oldPassword").exists())
                 .andExpect(jsonPath("$.fields.newPassword").exists());
+    }
+
+    @Test
+    void updateDataConsent_shouldReturnAcceptedAtWhenAuthenticated() throws Exception {
+        this.stubAuthenticatedSession();
+        Instant acceptedAt = Instant.parse("2026-06-03T22:00:00Z");
+        when(this.updateDataConsentUseCase.execute(any()))
+                .thenReturn(new UpdateDataConsentResponse(acceptedAt));
+
+        this.mvc.perform(post("/auth/me/data-consent")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(this.json(Map.of("accept", true))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.acceptedDataCommercializationAt").value("2026-06-03T22:00:00Z"));
     }
 
     @Test

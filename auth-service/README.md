@@ -13,27 +13,28 @@ Authentication microservice for CourtRank. It owns credentials, email verificati
 - Kafka publication for auth and audit events.
 - HTTP cookies for web clients and token responses for mobile clients.
 
-This service does not own user profile data such as name, username, avatar, or public profile fields. Those belong in `users-service`.
+This service does not own user profile data such as name, username, avatar, or public profile fields. Those belong in `user-service`.
 
 ## Local Requirements
 
-- Java 21
+- Java 17 or newer. The Maven build currently compiles with Java release 17.
 - Docker and Docker Compose
 - PostgreSQL if running without Docker Compose
 - Kafka if running with the `kafka` profile outside Docker Compose
 
 ## Environment
 
-Copy the example file and fill the real values locally:
+Copy the central secrets example and fill the real values locally:
 
 ```bash
-cp auth-service/.env.example auth-service/.env
+cp secrets/auth-service.env.example secrets/auth-service.env
 ```
 
-For Docker Compose, also create a root `.env` from the root example:
+Create or copy the JWT keys into the central secrets directory. Do not keep runtime PEM files under `auth-service/src/main/resources`; the build excludes PEM files from the jar.
 
 ```bash
-cp .env.example .env
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out secrets/jwt-private.pem
+openssl rsa -pubout -in secrets/jwt-private.pem -out secrets/jwt-public.pem
 ```
 
 Required important variables:
@@ -46,12 +47,14 @@ DATABASE_URL=jdbc:postgresql://localhost:5432/courtrank_auth
 DATABASE_USERNAME=courtrank_auth_user
 DATABASE_PASSWORD=change-me
 
-JWT_PRIVATE_KEY=classpath:private.pem
-JWT_PUBLIC_KEY=classpath:public.pem
+JWT_PRIVATE_KEY=file:../secrets/jwt-private.pem
+JWT_PUBLIC_KEY=file:../secrets/jwt-public.pem
 PASSWORD_PEPPER=change-me
 
 WEB_API_KEY=change-me
 MOBILE_API_KEY=change-me
+INTERNAL_API_KEY=change-me
+USER_SERVICE_API_KEY=change-me
 
 FRONTEND_URL=http://localhost:3000
 CORS_ALLOWED_ORIGINS=http://localhost:3000
@@ -59,7 +62,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 ```
 
-Do not commit real `.env` files, PEM keys, peppers, API keys, or database credentials.
+Do not commit real `.env` files, PEM keys, peppers, API keys, or database credentials. Runtime secrets live under `secrets/`, which is ignored by git.
 
 ## Profiles
 
@@ -86,6 +89,8 @@ This starts:
 
 - `auth-service` on `http://localhost:8081`
 - `auth-postgres` on host port `5433`
+- `user-service` on `http://localhost:8082`
+- `user-postgres` on host port `5434`
 - `kafka` on host port `9092`
 - `kafka-ui` on `http://localhost:8085`
 
@@ -120,7 +125,7 @@ From `auth-service`:
 
 ```bash
 set -a
-source .env
+source ../secrets/auth-service.env
 set +a
 ./mvnw spring-boot:run
 ```
@@ -135,10 +140,10 @@ From `auth-service`:
 docker build -t courtrank-auth .
 ```
 
-Run manually:
+Run manually with a local secrets env file:
 
 ```bash
-docker run --env-file .env -p 8081:8080 courtrank-auth
+docker run --env-file ../secrets/auth-service.env -p 8081:8080 courtrank-auth
 ```
 
 When running manually with `docker run`, remember that `localhost` inside the container is the container itself. Prefer Docker Compose for local infrastructure.
@@ -149,6 +154,8 @@ Actuator exposes:
 
 ```txt
 GET /actuator/health
+GET /actuator/health/liveness
+GET /actuator/health/readiness
 GET /actuator/info
 ```
 
@@ -470,6 +477,28 @@ Response `200`:
 }
 ```
 
+### POST /auth/me/data-consent
+
+Updates the authenticated user's data commercialization consent.
+
+Request:
+
+```json
+{
+  "accept": true
+}
+```
+
+Response `200`:
+
+```json
+{
+  "acceptedDataCommercializationAt": "2026-06-02T20:00:00Z"
+}
+```
+
+When consent is declined, `acceptedDataCommercializationAt` is `null`.
+
 ### GET /auth/sessions
 
 Lists active sessions for the authenticated user.
@@ -510,6 +539,26 @@ Response `200`:
 ```json
 {
   "message": "Sessions revoked"
+}
+```
+
+## Internal API
+
+Internal auth routes require:
+
+```http
+x-internal-api-key: <internal-api-key>
+```
+
+### GET /internal/auth/sessions/{sessionId}/active
+
+Checks whether a refresh session is active.
+
+Response `200`:
+
+```json
+{
+  "active": true
 }
 ```
 
@@ -559,6 +608,8 @@ Default topics:
 auth.events
 audit.events
 ```
+
+`auth-service` publishes authentication lifecycle events such as `USER_REGISTERED`, `USER_RESTORED`, and `USER_DELETED`. `user-service` consumes those events to keep user profiles in sync while that service is being migrated.
 
 Kafka UI is available locally through Docker Compose:
 

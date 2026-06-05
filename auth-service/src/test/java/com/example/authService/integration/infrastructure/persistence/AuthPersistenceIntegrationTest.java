@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "app.password.pepper=test-pepper",
         "app.api-keys.web=web-key",
         "app.api-keys.mobile=mobile-key",
+        "app.internal-api-key=internal-key",
         "app.cors.allowed-origins=http://localhost:3000"
 })
 @ActiveProfiles("test")

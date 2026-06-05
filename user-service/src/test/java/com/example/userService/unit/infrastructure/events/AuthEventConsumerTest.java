@@ -1,8 +1,10 @@
 package com.example.userService.unit.infrastructure.events;
 
 import com.example.userService.application.dto.CreateUserRequest;
+import com.example.userService.application.dto.RestoreUserRequest;
 import com.example.userService.application.useCases.CreateUserFromAuthEventUseCase;
 import com.example.userService.application.useCases.DeleteUserFromAuthEventUseCase;
+import com.example.userService.application.useCases.RestoreUserFromAuthEventUseCase;
 import com.example.userService.infrastructure.events.AuthEventConsumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -19,9 +21,10 @@ public class AuthEventConsumerTest {
     @Test
     void consume_shouldCreateUserWhenAuthEventIsUserRegistered() throws Exception {
         FakeCreateUserFromAuthEventUseCase createUseCase = new FakeCreateUserFromAuthEventUseCase();
+        FakeRestoreUserFromAuthEventUseCase restoreUseCase = new FakeRestoreUserFromAuthEventUseCase();
         FakeDeleteUserFromAuthEventUseCase deleteUseCase = new FakeDeleteUserFromAuthEventUseCase();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        AuthEventConsumer consumer = new AuthEventConsumer(objectMapper, createUseCase, deleteUseCase);
+        AuthEventConsumer consumer = new AuthEventConsumer(objectMapper, createUseCase, restoreUseCase, deleteUseCase);
         UUID userId = UUID.randomUUID();
 
         String message = objectMapper.writeValueAsString(Map.of(
@@ -45,15 +48,17 @@ public class AuthEventConsumerTest {
         assertEquals("test@test.com", request.email());
         assertEquals("Test User", request.name());
         assertEquals("testuser", request.userName());
+        assertNull(restoreUseCase.request);
         assertNull(deleteUseCase.userId);
     }
 
     @Test
-    void consume_shouldCreateUserWhenAuthEventIsUserRestoredWithoutUsername() throws Exception {
+    void consume_shouldRestoreUserWhenAuthEventIsUserRestoredWithoutUsername() throws Exception {
         FakeCreateUserFromAuthEventUseCase createUseCase = new FakeCreateUserFromAuthEventUseCase();
+        FakeRestoreUserFromAuthEventUseCase restoreUseCase = new FakeRestoreUserFromAuthEventUseCase();
         FakeDeleteUserFromAuthEventUseCase deleteUseCase = new FakeDeleteUserFromAuthEventUseCase();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        AuthEventConsumer consumer = new AuthEventConsumer(objectMapper, createUseCase, deleteUseCase);
+        AuthEventConsumer consumer = new AuthEventConsumer(objectMapper, createUseCase, restoreUseCase, deleteUseCase);
         UUID userId = UUID.randomUUID();
         Map<String, Object> payload = new HashMap<>();
         payload.put("id", userId);
@@ -71,20 +76,22 @@ public class AuthEventConsumerTest {
 
         consumer.consume(message);
 
-        CreateUserRequest request = createUseCase.request;
+        RestoreUserRequest request = restoreUseCase.request;
         assertEquals(userId, request.id());
         assertEquals("test@test.com", request.email());
         assertEquals("Test User", request.name());
         assertNull(request.userName());
+        assertNull(createUseCase.request);
         assertNull(deleteUseCase.userId);
     }
 
     @Test
     void consume_shouldDeleteUserWhenAuthEventIsUserDeleted() throws Exception {
         FakeCreateUserFromAuthEventUseCase createUseCase = new FakeCreateUserFromAuthEventUseCase();
+        FakeRestoreUserFromAuthEventUseCase restoreUseCase = new FakeRestoreUserFromAuthEventUseCase();
         FakeDeleteUserFromAuthEventUseCase deleteUseCase = new FakeDeleteUserFromAuthEventUseCase();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        AuthEventConsumer consumer = new AuthEventConsumer(objectMapper, createUseCase, deleteUseCase);
+        AuthEventConsumer consumer = new AuthEventConsumer(objectMapper, createUseCase, restoreUseCase, deleteUseCase);
         UUID userId = UUID.randomUUID();
 
         String message = objectMapper.writeValueAsString(Map.of(
@@ -102,6 +109,7 @@ public class AuthEventConsumerTest {
         consumer.consume(message);
 
         assertNull(createUseCase.request);
+        assertNull(restoreUseCase.request);
         assertEquals(userId, deleteUseCase.userId);
     }
 
@@ -114,6 +122,19 @@ public class AuthEventConsumerTest {
 
         @Override
         public void execute(CreateUserRequest request) {
+            this.request = request;
+        }
+    }
+
+    private static class FakeRestoreUserFromAuthEventUseCase extends RestoreUserFromAuthEventUseCase {
+        private RestoreUserRequest request;
+
+        private FakeRestoreUserFromAuthEventUseCase() {
+            super(null, null);
+        }
+
+        @Override
+        public void execute(RestoreUserRequest request) {
             this.request = request;
         }
     }

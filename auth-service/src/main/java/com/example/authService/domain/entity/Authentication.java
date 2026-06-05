@@ -166,6 +166,12 @@ public class Authentication {
         this.updatedAt = Instant.now();
     }
 
+    public void updateDataConsent(boolean accept) {
+        Instant now = Instant.now();
+        this.dataConsentAcceptedAt = accept ? now : null;
+        this.updatedAt = now;
+    }
+
     public boolean isDataAccepted(){
         return this.dataConsentAcceptedAt != null;
     }

@@ -7,7 +7,6 @@ import com.example.userService.application.ports.audit.UserAuditEvent;
 import com.example.userService.application.ports.audit.UserAuditEventType;
 import com.example.userService.application.ports.audit.UserAuditLogger;
 import com.example.userService.domain.entity.User;
-import com.example.userService.domain.exceptions.UserNameAlreadyTakenException;
 import com.example.userService.domain.repository.UserRepository;
 
 import java.time.Instant;
@@ -48,7 +47,9 @@ public class CreateUserFromAuthEventUseCase {
             return;
         }
 
-        if (request.userName() != null && !request.userName().isBlank()) {
+        String username = request.userName();
+
+        if (username != null && !username.isBlank()) {
             Optional<User> usernameTaken = this.userRepository.findByUsername(request.userName());
 
             if(usernameTaken.isPresent()) {
@@ -64,11 +65,11 @@ public class CreateUserFromAuthEventUseCase {
                         ),
                         Instant.now()
                 ));
-                throw new UserNameAlreadyTakenException();
+                username = null;
             }
         }
 
-        User newUser = User.create(request.id(), request.name(), request.userName(), request.email());
+        User newUser = User.create(request.id(), request.name(), username, request.email());
 
         this.userRepository.save(newUser);
         this.auditLogger.log(new UserAuditEvent(

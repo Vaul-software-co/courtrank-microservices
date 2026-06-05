@@ -51,7 +51,7 @@ public class HttpSecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(this.csv(allowedOrigins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Content-Type", "Authorization", "x-api-key", "x-request-id"));
+        config.setAllowedHeaders(List.of("Content-Type", "Authorization", "x-api-key", "x-internal-api-key", "x-request-id"));
         config.setExposedHeaders(List.of("Set-Cookie"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
@@ -89,6 +89,7 @@ public class HttpSecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/internal/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/signup").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/signin").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/refresh").permitAll()
@@ -106,6 +107,7 @@ public class HttpSecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/change-password").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/auth/me").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/auth/me/data-consent").authenticated()
                         .requestMatchers(HttpMethod.GET, "/auth/sessions").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/auth/sessions").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/auth/sessions/**").authenticated()
