@@ -1,0 +1,173 @@
+package com.courtrank.userService.infrastructure.events;
+
+import com.courtrank.userService.application.dto.CreateUserRequest;
+import com.courtrank.userService.application.dto.RestoreUserRequest;
+import com.courtrank.userService.application.useCases.CreateUserFromAuthEventUseCase;
+import com.courtrank.userService.application.useCases.DeleteUserFromAuthEventUseCase;
+import com.courtrank.userService.application.useCases.MarkUserEmailVerifiedFromAuthEventUseCase;
+import com.courtrank.userService.application.useCases.RestoreUserFromAuthEventUseCase;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+
+import java.util.UUID;
+
+@Component
+@Profile({"kafka", "production"})
+public class AuthEventConsumer {
+    private static final Logger logger = LoggerFactory.getLogger(AuthEventConsumer.class);
+    private static final String USER_REGISTERED = "USER_REGISTERED";
+    private static final String USER_RESTORED = "USER_RESTORED";
+    private static final String USER_DELETED = "USER_DELETED";
+    private static final String USER_EMAIL_VERIFIED = "USER_EMAIL_VERIFIED";
+
+    private final ObjectMapper objectMapper;
+    private final CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase;
+    private final RestoreUserFromAuthEventUseCase restoreUserFromAuthEventUseCase;
+    private final DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase;
+    private final MarkUserEmailVerifiedFromAuthEventUseCase markUserEmailVerifiedFromAuthEventUseCase;
+
+    public AuthEventConsumer(
+            ObjectMapper objectMapper,
+            CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase,
+            RestoreUserFromAuthEventUseCase restoreUserFromAuthEventUseCase,
+            DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase,
+            MarkUserEmailVerifiedFromAuthEventUseCase markUserEmailVerifiedFromAuthEventUseCase
+    ) {
+        this.objectMapper = objectMapper;
+        this.createUserFromAuthEventUseCase = createUserFromAuthEventUseCase;
+        this.restoreUserFromAuthEventUseCase = restoreUserFromAuthEventUseCase;
+        this.deleteUserFromAuthEventUseCase = deleteUserFromAuthEventUseCase;
+        this.markUserEmailVerifiedFromAuthEventUseCase = markUserEmailVerifiedFromAuthEventUseCase;
+    }
+
+    @KafkaListener(
+            topics = "${app.kafka.topics.auth-events}",
+            groupId = "${app.kafka.consumer.group-id}"
+    )
+    public void consume(String message) {
+        AuthEventMessage event = this.parse(message);
+
+        if (USER_REGISTERED.equals(event.eventType())) {
+            logger.info(
+                    "Processing auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            this.createUserFromAuthEventUseCase.execute(this.toCreateUserRequest(event.payload()));
+            logger.info(
+                    "Processed auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            return;
+        }
+
+        if (USER_RESTORED.equals(event.eventType())) {
+            logger.info(
+                    "Processing auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            this.restoreUserFromAuthEventUseCase.execute(this.toRestoreUserRequest(event.payload()));
+            logger.info(
+                    "Processed auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            return;
+        }
+
+        if (USER_DELETED.equals(event.eventType())) {
+            logger.info(
+                    "Processing auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            this.deleteUserFromAuthEventUseCase.execute(event.aggregateId());
+            logger.info(
+                    "Processed auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            return;
+        }
+
+        if (USER_EMAIL_VERIFIED.equals(event.eventType())) {
+            logger.info(
+                    "Processing auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            this.markUserEmailVerifiedFromAuthEventUseCase.execute(event.aggregateId());
+            logger.info(
+                    "Processed auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            return;
+        }
+
+        logger.debug("Ignoring auth event type={}", event.eventType());
+    }
+
+    private AuthEventMessage parse(String message) {
+        try {
+            return this.objectMapper.readValue(message, AuthEventMessage.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Invalid auth event payload", exception);
+        }
+    }
+
+    private CreateUserRequest toCreateUserRequest(JsonNode payload) {
+        return new CreateUserRequest(
+                UUID.fromString(payload.required("id").asText()),
+                payload.required("name").asText(),
+                this.nullableText(payload.get("username")),
+                payload.required("email").asText(),
+                payload.path("emailVerified").asBoolean(false)
+        );
+    }
+
+    private RestoreUserRequest toRestoreUserRequest(JsonNode payload) {
+        return new RestoreUserRequest(
+                UUID.fromString(payload.required("id").asText()),
+                payload.required("name").asText(),
+                this.nullableText(payload.get("username")),
+                payload.required("email").asText(),
+                payload.path("emailVerified").asBoolean(false)
+        );
+    }
+
+    private String nullableText(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+
+        String value = node.asText();
+        return value.isBlank() ? null : value;
+    }
+
+    private record AuthEventMessage(
+            UUID eventId,
+            String eventType,
+            UUID aggregateId,
+            String source,
+            JsonNode payload,
+            String publishedAt
+    ) {
+    }
+}
