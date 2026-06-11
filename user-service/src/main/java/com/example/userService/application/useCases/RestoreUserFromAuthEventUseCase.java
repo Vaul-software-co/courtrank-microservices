@@ -28,7 +28,7 @@ public class RestoreUserFromAuthEventUseCase {
 
         if (existingUser == null) {
             this.assertUsernameAvailable(request);
-            User user = User.create(request.id(), request.name(), request.userName(), request.email());
+            User user = User.create(request.id(), request.name(), request.userName(), request.email(), request.emailVerified());
             this.userRepository.save(user);
             this.auditLogger.log(new UserAuditEvent(
                     UserAuditEventType.USER_PROFILE_RESTORE_CREATED_FROM_AUTH_EVENT,
@@ -57,6 +57,9 @@ public class RestoreUserFromAuthEventUseCase {
         }
 
         existingUser.showProfile();
+        if (request.emailVerified()) {
+            existingUser.markEmailVerified();
+        }
         this.userRepository.save(existingUser);
         this.auditLogger.log(new UserAuditEvent(
                 UserAuditEventType.USER_PROFILE_RESTORED_FROM_AUTH_EVENT,

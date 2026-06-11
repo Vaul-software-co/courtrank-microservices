@@ -1,7 +1,9 @@
 package com.example.authService.application.useCases;
 
+import com.example.authService.application.dto.AuthResponse;
 import com.example.authService.application.dto.HttpContext;
 import com.example.authService.application.dto.SignUpRequest;
+import com.example.authService.application.dto.SignUpResponse;
 import com.example.authService.application.events.UserRegisteredEvent;
 import com.example.authService.application.events.UserRestoredEvent;
 import com.example.authService.application.ports.AuthEventPublisher;
@@ -9,7 +11,9 @@ import com.example.authService.application.ports.audit.AuditEvent;
 import com.example.authService.application.ports.audit.AuditEventType;
 import com.example.authService.application.ports.audit.AuditLogger;
 import com.example.authService.application.ports.user.UsernameAvailabilityVerifier;
+import com.example.authService.application.services.SessionIssuer;
 import com.example.authService.domain.entity.Authentication;
+import com.example.authService.domain.enums.UserRole;
 import com.example.authService.domain.exceptions.ConflictException;
 import com.example.authService.domain.exceptions.MissedTermsAndConditionsException;
 import com.example.authService.domain.repository.AuthenticationRepository;
@@ -27,6 +31,7 @@ public class SignUpUseCase {
     private final UsernameAvailabilityVerifier usernameAvailabilityVerifier;
     private final PasswordPolicy passwordPolicy;
     private final AuditLogger auditLogger;
+    private final SessionIssuer sessionIssuer;
 
     public SignUpUseCase(
             AuthenticationRepository authRepository,
@@ -34,7 +39,8 @@ public class SignUpUseCase {
             AuthEventPublisher eventPublisher,
             UsernameAvailabilityVerifier usernameAvailabilityVerifier,
             PasswordPolicy passwordPolicy,
-            AuditLogger auditLogger
+            AuditLogger auditLogger,
+            SessionIssuer sessionIssuer
     ){
         this.authRepository = authRepository;
         this.passwordHasher = passwordHasher;
@@ -42,9 +48,10 @@ public class SignUpUseCase {
         this.usernameAvailabilityVerifier = usernameAvailabilityVerifier;
         this.passwordPolicy = passwordPolicy;
         this.auditLogger = auditLogger;
+        this.sessionIssuer = sessionIssuer;
     }
 
-    public Authentication execute(SignUpRequest request, HttpContext http){
+    public SignUpResponse execute(SignUpRequest request, HttpContext http){
         if (!request.isTerms()) {
             throw new MissedTermsAndConditionsException();
         }
@@ -119,6 +126,7 @@ public class SignUpUseCase {
                             request.name(),
                             request.username(),
                             auth.getRole(),
+                            auth.isEmailVerified(),
                             request.termsVersion(),
                             request.isCommercial(),
                             Instant.now()
@@ -132,6 +140,7 @@ public class SignUpUseCase {
                             request.name(),
                             request.username(),
                             auth.getRole(),
+                            auth.isEmailVerified(),
                             request.termsVersion(),
                             request.isCommercial(),
                             Instant.now()
@@ -139,6 +148,12 @@ public class SignUpUseCase {
             );
         }
 
-        return auth;
+        Optional<AuthResponse> authResponse = Optional.empty();
+
+        if (auth.getRole() == UserRole.MEMBER) {
+            authResponse = Optional.of(this.sessionIssuer.issue(auth, http));
+        }
+
+        return new SignUpResponse(auth, authResponse);
     }
 }

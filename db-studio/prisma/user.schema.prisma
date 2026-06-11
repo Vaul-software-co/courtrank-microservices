@@ -29,6 +29,7 @@ model users {
   name                     String    @db.VarChar(100)
   username                 String?   @db.VarChar(30)
   email                    String    @db.VarChar(320)
+  email_verified           Boolean   @default(false)
   gender                   String?   @db.VarChar(32)
   phone_number             String?   @db.VarChar(20)
   avatar_url               String?

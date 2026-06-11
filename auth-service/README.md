@@ -188,7 +188,9 @@ Authorization: Bearer <access-token>
 
 ### POST /auth/signup
 
-Creates an authentication record and sends the verification email.
+Creates an authentication record and always sends the verification email.
+
+The user role is derived from the API key context. `MEMBER` registrations also create a refresh session and return tokens so the user starts authenticated. Non-`MEMBER` registrations do not create a session and only return the verification message.
 
 Request:
 
@@ -210,7 +212,16 @@ Accepted aliases:
 - `termsVersion`: `acceptedTermsVersion`
 - `commercial`: `isCommercial`, `acceptedDataCommercialization`
 
-Response `201`:
+Response `201` for `MEMBER` registrations:
+
+```json
+{
+  "token": "<access-token>",
+  "refreshToken": "<refresh-token>"
+}
+```
+
+Response `201` for non-`MEMBER` registrations:
 
 ```json
 {
@@ -221,6 +232,8 @@ Response `201`:
 ### POST /auth/signin
 
 Authenticates the user and creates a refresh session.
+
+`MEMBER` users can sign in even if their email is still unverified. Non-`MEMBER` users must verify their email before sign in.
 
 Request:
 

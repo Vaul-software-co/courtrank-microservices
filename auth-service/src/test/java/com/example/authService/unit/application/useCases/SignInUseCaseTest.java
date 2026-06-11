@@ -7,22 +7,17 @@ import com.example.authService.application.ports.authorization.WorkerAccess;
 import com.example.authService.application.ports.authorization.WorkerAccessVerifier;
 import com.example.authService.application.ports.audit.AuditLogger;
 import com.example.authService.application.ports.security.PasswordHasher;
-import com.example.authService.application.ports.security.TokenHasher;
-import com.example.authService.application.ports.security.TokenService;
+import com.example.authService.application.services.SessionIssuer;
 import com.example.authService.application.useCases.SignInUseCase;
 import com.example.authService.domain.entity.Authentication;
-import com.example.authService.domain.entity.Session;
-import com.example.authService.domain.enums.TokenType;
 import com.example.authService.domain.enums.UserRole;
 import com.example.authService.domain.exceptions.DisabledAccountException;
 import com.example.authService.domain.exceptions.EmailNotVerifiedException;
 import com.example.authService.domain.exceptions.ForbiddenException;
 import com.example.authService.domain.exceptions.InvalidCredentialsException;
 import com.example.authService.domain.repository.AuthenticationRepository;
-import com.example.authService.domain.repository.SessionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -34,8 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -50,19 +43,13 @@ public class SignInUseCaseTest {
     PasswordHasher passwordHasher;
 
     @Mock
-    SessionRepository sessionRepository;
-
-    @Mock
-    TokenService tokenService;
-
-    @Mock
-    TokenHasher tokenHasher;
-
-    @Mock
     WorkerAccessVerifier workerAccess;
 
     @Mock
     AuditLogger auditLogger;
+
+    @Mock
+    SessionIssuer sessionIssuer;
 
     @InjectMocks
     SignInUseCase signInUseCase;
@@ -72,7 +59,6 @@ public class SignInUseCaseTest {
     private static final String PASSWORD_HASH = "hash";
     private static final String ACCESS_TOKEN = "access-token";
     private static final String REFRESH_TOKEN = "refresh-token";
-    private static final String REFRESH_TOKEN_HASH = "refresh-token-hash";
 
     private final HttpContext memberHttp = new HttpContext(
             "mobile",
@@ -121,28 +107,15 @@ public class SignInUseCaseTest {
                 .thenReturn(Optional.of(auth));
         when(this.passwordHasher.checkPassword(PASSWORD, PASSWORD_HASH))
                 .thenReturn(true);
-        when(this.tokenService.generateToken(auth.getId(), TokenType.REFRESH))
-                .thenReturn(REFRESH_TOKEN);
-        when(this.tokenHasher.hash(REFRESH_TOKEN))
-                .thenReturn(REFRESH_TOKEN_HASH);
-        when(this.tokenService.generateAccessToken(eq(auth.getId()), any(UUID.class), eq(auth.getRole())))
-                .thenReturn(ACCESS_TOKEN);
+        when(this.sessionIssuer.issue(auth, this.memberHttp))
+                .thenReturn(new AuthResponse(ACCESS_TOKEN, REFRESH_TOKEN, Optional.empty()));
 
         AuthResponse response = this.signInUseCase.execute(new SignInRequest(EMAIL, PASSWORD), this.memberHttp);
 
-        ArgumentCaptor<Session> sessionCaptor = ArgumentCaptor.forClass(Session.class);
-        verify(this.sessionRepository).save(sessionCaptor.capture());
-
-        Session savedSession = sessionCaptor.getValue();
         assertEquals(ACCESS_TOKEN, response.accessToken());
         assertEquals(REFRESH_TOKEN, response.refreshToken());
         assertTrue(response.clubId().isEmpty());
-        assertEquals(auth.getId(), savedSession.getUserId());
-        assertEquals(REFRESH_TOKEN_HASH, savedSession.getRefreshTokenHash());
-        assertEquals(this.memberHttp.client(), savedSession.getClient());
-        assertEquals(this.memberHttp.ip(), savedSession.getIp());
-        assertEquals(this.memberHttp.userAgent(), savedSession.getUserAgent());
-        assertTrue(savedSession.isActive());
+        verify(this.sessionIssuer).issue(auth, this.memberHttp);
         verifyNoInteractions(this.workerAccess);
     }
 
@@ -157,9 +130,7 @@ public class SignInUseCaseTest {
         );
 
         verifyNoInteractions(this.passwordHasher);
-        verifyNoInteractions(this.tokenService);
-        verifyNoInteractions(this.tokenHasher);
-        verifyNoInteractions(this.sessionRepository);
+        verifyNoInteractions(this.sessionIssuer);
         verifyNoInteractions(this.workerAccess);
     }
 
@@ -178,9 +149,7 @@ public class SignInUseCaseTest {
                 () -> this.signInUseCase.execute(new SignInRequest(EMAIL, PASSWORD), this.memberHttp)
         );
 
-        verifyNoInteractions(this.tokenService);
-        verifyNoInteractions(this.tokenHasher);
-        verifyNoInteractions(this.sessionRepository);
+        verifyNoInteractions(this.sessionIssuer);
         verifyNoInteractions(this.workerAccess);
     }
 
@@ -198,15 +167,33 @@ public class SignInUseCaseTest {
                 () -> this.signInUseCase.execute(new SignInRequest(EMAIL, PASSWORD), this.memberHttp)
         );
 
-        verifyNoInteractions(this.tokenService);
-        verifyNoInteractions(this.tokenHasher);
-        verifyNoInteractions(this.sessionRepository);
+        verifyNoInteractions(this.sessionIssuer);
         verifyNoInteractions(this.workerAccess);
     }
 
     @Test
-    void execute_shouldThrowEmailNotVerifiedWhenEmailIsNotVerified() {
+    void execute_shouldReturnTokensWhenMemberEmailIsNotVerified() {
         Authentication auth = Authentication.create(EMAIL, PASSWORD_HASH, UserRole.MEMBER);
+
+        when(this.authenticationRepository.findByEmail(EMAIL))
+                .thenReturn(Optional.of(auth));
+        when(this.passwordHasher.checkPassword(PASSWORD, PASSWORD_HASH))
+                .thenReturn(true);
+        when(this.sessionIssuer.issue(auth, this.memberHttp))
+                .thenReturn(new AuthResponse(ACCESS_TOKEN, REFRESH_TOKEN, Optional.empty()));
+
+        AuthResponse response = this.signInUseCase.execute(new SignInRequest(EMAIL, PASSWORD), this.memberHttp);
+
+        assertEquals(ACCESS_TOKEN, response.accessToken());
+        assertEquals(REFRESH_TOKEN, response.refreshToken());
+        assertTrue(response.clubId().isEmpty());
+        verify(this.sessionIssuer).issue(auth, this.memberHttp);
+        verifyNoInteractions(this.workerAccess);
+    }
+
+    @Test
+    void execute_shouldThrowEmailNotVerifiedWhenNonMemberEmailIsNotVerified() {
+        Authentication auth = Authentication.create(EMAIL, PASSWORD_HASH, UserRole.ADMIN);
 
         when(this.authenticationRepository.findByEmail(EMAIL))
                 .thenReturn(Optional.of(auth));
@@ -215,12 +202,10 @@ public class SignInUseCaseTest {
 
         assertThrows(
                 EmailNotVerifiedException.class,
-                () -> this.signInUseCase.execute(new SignInRequest(EMAIL, PASSWORD), this.memberHttp)
+                () -> this.signInUseCase.execute(new SignInRequest(EMAIL, PASSWORD), this.adminHttp)
         );
 
-        verifyNoInteractions(this.tokenService);
-        verifyNoInteractions(this.tokenHasher);
-        verifyNoInteractions(this.sessionRepository);
+        verifyNoInteractions(this.sessionIssuer);
         verifyNoInteractions(this.workerAccess);
     }
 
@@ -238,9 +223,7 @@ public class SignInUseCaseTest {
                 () -> this.signInUseCase.execute(new SignInRequest(EMAIL, "WrongPass1!"), this.memberHttp)
         );
 
-        verifyNoInteractions(this.tokenService);
-        verifyNoInteractions(this.tokenHasher);
-        verifyNoInteractions(this.sessionRepository);
+        verifyNoInteractions(this.sessionIssuer);
         verifyNoInteractions(this.workerAccess);
     }
 
@@ -255,18 +238,14 @@ public class SignInUseCaseTest {
                 .thenReturn(true);
         when(this.workerAccess.verify(auth.getId()))
                 .thenReturn(new WorkerAccess(true, clubId));
-        when(this.tokenService.generateToken(auth.getId(), TokenType.REFRESH))
-                .thenReturn(REFRESH_TOKEN);
-        when(this.tokenHasher.hash(REFRESH_TOKEN))
-                .thenReturn(REFRESH_TOKEN_HASH);
-        when(this.tokenService.generateAccessToken(eq(auth.getId()), any(UUID.class), eq(auth.getRole())))
-                .thenReturn(ACCESS_TOKEN);
+        when(this.sessionIssuer.issue(auth, this.adminHttp))
+                .thenReturn(new AuthResponse(ACCESS_TOKEN, REFRESH_TOKEN, Optional.empty()));
 
         AuthResponse response = this.signInUseCase.execute(new SignInRequest(EMAIL, PASSWORD), this.adminHttp);
 
         assertEquals(Optional.of(clubId), response.clubId());
         verify(this.workerAccess).verify(auth.getId());
-        verify(this.sessionRepository).save(org.mockito.ArgumentMatchers.any(Session.class));
+        verify(this.sessionIssuer).issue(auth, this.adminHttp);
     }
 
     @Test
@@ -286,9 +265,7 @@ public class SignInUseCaseTest {
         );
 
         verify(this.workerAccess).verify(auth.getId());
-        verifyNoInteractions(this.tokenService);
-        verifyNoInteractions(this.tokenHasher);
-        verifyNoInteractions(this.sessionRepository);
+        verifyNoInteractions(this.sessionIssuer);
     }
 
     @Test
@@ -299,17 +276,13 @@ public class SignInUseCaseTest {
                 .thenReturn(Optional.of(auth));
         when(this.passwordHasher.checkPassword(PASSWORD, PASSWORD_HASH))
                 .thenReturn(true);
-        when(this.tokenService.generateToken(auth.getId(), TokenType.REFRESH))
-                .thenReturn(REFRESH_TOKEN);
-        when(this.tokenHasher.hash(REFRESH_TOKEN))
-                .thenReturn(REFRESH_TOKEN_HASH);
-        when(this.tokenService.generateAccessToken(eq(auth.getId()), any(UUID.class), eq(auth.getRole())))
-                .thenReturn(ACCESS_TOKEN);
+        when(this.sessionIssuer.issue(auth, this.adminHttp))
+                .thenReturn(new AuthResponse(ACCESS_TOKEN, REFRESH_TOKEN, Optional.empty()));
 
         AuthResponse response = this.signInUseCase.execute(new SignInRequest(EMAIL, PASSWORD), this.adminHttp);
 
         assertTrue(response.clubId().isEmpty());
         verifyNoInteractions(this.workerAccess);
-        verify(this.sessionRepository).save(org.mockito.ArgumentMatchers.any(Session.class));
+        verify(this.sessionIssuer).issue(auth, this.adminHttp);
     }
 }

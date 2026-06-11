@@ -20,6 +20,7 @@ public class User {
     private String name;
     private String userName;
     private String email;
+    private boolean emailVerified;
     private UserGender gender;
     private String phoneNumber;
     private String avatarUrl;
@@ -36,6 +37,7 @@ public class User {
             String name,
             String userName,
             String email,
+            boolean emailVerified,
             UserGender gender,
             String phoneNumber,
             String avatarUrl,
@@ -51,6 +53,7 @@ public class User {
         this.name = name;
         this.userName = userName;
         this.email = email;
+        this.emailVerified = emailVerified;
         this.gender = gender;
         this.phoneNumber = phoneNumber;
         this.avatarUrl = avatarUrl;
@@ -68,6 +71,16 @@ public class User {
             String name,
             String userName,
             String email
+    ) {
+        return create(id, name, userName, email, false);
+    }
+
+    public static User create(
+            UUID id,
+            String name,
+            String userName,
+            String email,
+            boolean emailVerified
     ){
         Instant now = Instant.now();
         return new User(
@@ -75,6 +88,7 @@ public class User {
                 name,
                 userName,
                 email,
+                emailVerified,
                 null,
                 null,
                 null,
@@ -103,12 +117,49 @@ public class User {
             UserProfileStatus status,
             Instant createdAt,
             Instant updatedAt
+    ) {
+        return restore(
+                id,
+                name,
+                userName,
+                email,
+                false,
+                gender,
+                phoneNumber,
+                avatarUrl,
+                usernameChangedAt,
+                usernamePrevChangedAt,
+                lang,
+                privateProfile,
+                status,
+                createdAt,
+                updatedAt
+        );
+    }
+
+    public static User restore(
+            UUID id,
+            String name,
+            String userName,
+            String email,
+            boolean emailVerified,
+            UserGender gender,
+            String phoneNumber,
+            String avatarUrl,
+            Instant usernameChangedAt,
+            Instant usernamePrevChangedAt,
+            String lang,
+            boolean privateProfile,
+            UserProfileStatus status,
+            Instant createdAt,
+            Instant updatedAt
     ){
         return new User(
                 id,
                 name,
                 userName,
                 email,
+                emailVerified,
                 gender,
                 phoneNumber,
                 avatarUrl,
@@ -136,6 +187,10 @@ public class User {
 
     public String getEmail() {
         return this.email;
+    }
+
+    public boolean isEmailVerified() {
+        return this.emailVerified;
     }
 
     public UserGender getGender() {
@@ -252,6 +307,11 @@ public class User {
 
     public void changeLang(String lang) {
         this.lang = lang;
+        this.updatedAt = Instant.now();
+    }
+
+    public void markEmailVerified() {
+        this.emailVerified = true;
         this.updatedAt = Instant.now();
     }
 

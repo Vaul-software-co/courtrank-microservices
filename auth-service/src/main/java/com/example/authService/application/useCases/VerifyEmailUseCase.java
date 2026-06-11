@@ -1,5 +1,7 @@
 package com.example.authService.application.useCases;
 
+import com.example.authService.application.events.UserEmailVerifiedEvent;
+import com.example.authService.application.ports.AuthEventPublisher;
 import com.example.authService.application.dto.VerifyEmailRequest;
 import com.example.authService.application.ports.audit.AuditEvent;
 import com.example.authService.application.ports.audit.AuditEventType;
@@ -22,13 +24,22 @@ public class VerifyEmailUseCase {
     private final AuthenticationRepository authenticationRepository;
     private final PasswordHasher passwordHasher;
     private final AuditLogger auditLogger;
+    private final AuthEventPublisher eventPublisher;
 
-    public VerifyEmailUseCase(VerificationTokenRepository tokenRepository, VerificationTokenGenerator tokenGenerator, AuthenticationRepository authenticationRepository, PasswordHasher passwordHasher, AuditLogger auditLogger) {
+    public VerifyEmailUseCase(
+            VerificationTokenRepository tokenRepository,
+            VerificationTokenGenerator tokenGenerator,
+            AuthenticationRepository authenticationRepository,
+            PasswordHasher passwordHasher,
+            AuditLogger auditLogger,
+            AuthEventPublisher eventPublisher
+    ) {
         this.tokenRepository = tokenRepository;
         this.tokenGenerator = tokenGenerator;
         this.authenticationRepository = authenticationRepository;
         this.passwordHasher = passwordHasher;
         this.auditLogger = auditLogger;
+        this.eventPublisher = eventPublisher;
     }
 
 
@@ -66,6 +77,6 @@ public class VerifyEmailUseCase {
                 Map.of(),
                 Instant.now()
         ));
-
+        this.eventPublisher.publishUserEmailVerified(new UserEmailVerifiedEvent(auth.getId(), auth.getEmail(), Instant.now()));
     }
 }

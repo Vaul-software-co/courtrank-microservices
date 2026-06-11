@@ -1,5 +1,6 @@
 package com.example.authService.infrastructure.config;
 
+import com.example.authService.application.ports.AuthEventPublisher;
 import com.example.authService.application.ports.audit.AuditLogger;
 import com.example.authService.application.ports.email.EmailSender;
 import com.example.authService.application.ports.security.PasswordHasher;
@@ -52,14 +53,16 @@ public class EmailUseCaseConfig {
             VerificationTokenGenerator verificationTokenGenerator,
             AuthenticationRepository authenticationRepository,
             PasswordHasher passwordHasher,
-            AuditLogger auditLogger
+            AuditLogger auditLogger,
+            AuthEventPublisher authEventPublisher
     ) {
         return new VerifyEmailUseCase(
                 verificationTokenRepository,
                 verificationTokenGenerator,
                 authenticationRepository,
                 passwordHasher,
-                auditLogger
+                auditLogger,
+                authEventPublisher
         );
     }
 }

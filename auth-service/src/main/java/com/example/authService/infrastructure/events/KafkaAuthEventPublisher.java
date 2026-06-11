@@ -1,6 +1,7 @@
 package com.example.authService.infrastructure.events;
 
 import com.example.authService.application.events.UserDeletedEvent;
+import com.example.authService.application.events.UserEmailVerifiedEvent;
 import com.example.authService.application.events.UserRegisteredEvent;
 import com.example.authService.application.events.UserRestoredEvent;
 import com.example.authService.application.ports.AuthEventPublisher;
@@ -40,6 +41,11 @@ public class KafkaAuthEventPublisher implements AuthEventPublisher {
     @Override
     public void publishUserDeleted(UserDeletedEvent event) {
         this.publish("USER_DELETED", event.id(), event);
+    }
+
+    @Override
+    public void publishUserEmailVerified(UserEmailVerifiedEvent event) {
+        this.publish("USER_EMAIL_VERIFIED", event.id(), event);
     }
 
     private void publish(String eventType, UUID aggregateId, Object payload) {

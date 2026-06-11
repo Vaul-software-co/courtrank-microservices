@@ -16,9 +16,11 @@ public record CreateUserRequest(
 
         @Size(min = 3, max = 30)
         @Pattern(regexp = "^[a-zA-ZñÑ0-9_]+$", message = "Username can only contain letters, numbers and underscores")
-        String userName,
+    String userName,
 
-        @NotBlank
-        String email
+    @NotBlank
+    String email,
+
+    boolean emailVerified
 ) {
 }

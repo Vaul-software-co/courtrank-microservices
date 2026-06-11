@@ -1,6 +1,8 @@
 package com.example.authService.unit.application.useCases;
 
 import com.example.authService.application.dto.VerifyEmailRequest;
+import com.example.authService.application.events.UserEmailVerifiedEvent;
+import com.example.authService.application.ports.AuthEventPublisher;
 import com.example.authService.application.ports.audit.AuditLogger;
 import com.example.authService.application.ports.security.PasswordHasher;
 import com.example.authService.application.ports.security.VerificationTokenGenerator;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
@@ -45,6 +48,9 @@ public class VerifyEmailUseCaseTest {
 
     @Mock
     AuditLogger auditLogger;
+
+    @Mock
+    AuthEventPublisher eventPublisher;
 
     @InjectMocks
     VerifyEmailUseCase verifyEmailUseCase;
@@ -107,11 +113,15 @@ public class VerifyEmailUseCaseTest {
 
         this.verifyEmailUseCase.execute(new VerifyEmailRequest(auth.getId(), RAW_TOKEN, PASSWORD));
 
+        ArgumentCaptor<UserEmailVerifiedEvent> eventCaptor = ArgumentCaptor.forClass(UserEmailVerifiedEvent.class);
         assertTrue(auth.isEmailVerified());
         assertFalse(token.isValid());
         assertEquals(1, token.getAttempts());
         verify(this.authenticationRepository).save(auth);
         verify(this.tokenRepository).save(token);
+        verify(this.eventPublisher).publishUserEmailVerified(eventCaptor.capture());
+        assertEquals(auth.getId(), eventCaptor.getValue().id());
+        assertEquals(auth.getEmail(), eventCaptor.getValue().email());
     }
 
     @Test
@@ -131,6 +141,7 @@ public class VerifyEmailUseCaseTest {
         verify(this.tokenRepository).findValid(auth.getId(), TOKEN_HASH, VerificationTokenType.EMAIL_VERIFICATION);
         verifyNoInteractions(this.authenticationRepository);
         verifyNoInteractions(this.passwordHasher);
+        verifyNoInteractions(this.eventPublisher);
         verify(this.tokenRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
@@ -152,6 +163,7 @@ public class VerifyEmailUseCaseTest {
         );
 
         verifyNoInteractions(this.passwordHasher);
+        verifyNoInteractions(this.eventPublisher);
         verify(this.authenticationRepository, never()).save(org.mockito.ArgumentMatchers.any());
         verify(this.tokenRepository, never()).save(token);
     }
@@ -175,6 +187,7 @@ public class VerifyEmailUseCaseTest {
         );
 
         verifyNoInteractions(this.passwordHasher);
+        verifyNoInteractions(this.eventPublisher);
         verify(this.authenticationRepository, never()).save(auth);
         verify(this.tokenRepository, never()).save(token);
     }
@@ -197,6 +210,7 @@ public class VerifyEmailUseCaseTest {
         );
 
         verifyNoInteractions(this.passwordHasher);
+        verifyNoInteractions(this.eventPublisher);
         verify(this.authenticationRepository, never()).save(auth);
         verify(this.tokenRepository, never()).save(token);
     }
@@ -226,5 +240,6 @@ public class VerifyEmailUseCaseTest {
         assertTrue(token.isValid());
         verify(this.tokenRepository).save(token);
         verify(this.authenticationRepository, never()).save(auth);
+        verifyNoInteractions(this.eventPublisher);
     }
 }

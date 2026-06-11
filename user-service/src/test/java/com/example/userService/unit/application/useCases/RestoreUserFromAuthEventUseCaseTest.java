@@ -41,7 +41,7 @@ class RestoreUserFromAuthEventUseCaseTest {
                 .thenReturn(Optional.of(user));
 
         this.restoreUserFromAuthEventUseCase.execute(
-                new RestoreUserRequest(user.getId(), user.getName(), user.getUserName(), user.getEmail())
+                new RestoreUserRequest(user.getId(), user.getName(), user.getUserName(), user.getEmail(), false)
         );
 
         ArgumentCaptor<UserAuditEvent> auditCaptor = ArgumentCaptor.forClass(UserAuditEvent.class);

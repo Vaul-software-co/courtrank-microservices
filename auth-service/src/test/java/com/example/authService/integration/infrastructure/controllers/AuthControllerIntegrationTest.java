@@ -6,6 +6,7 @@ import com.example.authService.application.dto.LogoutRequest;
 import com.example.authService.application.dto.SessionSummary;
 import com.example.authService.application.dto.SignInRequest;
 import com.example.authService.application.dto.SignUpRequest;
+import com.example.authService.application.dto.SignUpResponse;
 import com.example.authService.application.dto.UpdateDataConsentResponse;
 import com.example.authService.application.dto.VerificationEmailRequest;
 import com.example.authService.application.dto.VerifyPasswordOtpRequest;
@@ -170,12 +171,15 @@ public class AuthControllerIntegrationTest {
     }
 
     @Test
-    void signUp_shouldReturnCreatedAndSendVerificationEmailWhenApiKeyIsValid() throws Exception {
+    void signUp_shouldReturnTokensAndSendVerificationEmailForMember() throws Exception {
         Authentication auth = Authentication.create("test@test.com", "hash", UserRole.MEMBER);
         when(this.clientVerifier.verify(MOBILE_API_KEY))
                 .thenReturn(new ApiClient("mobile", UserRole.MEMBER));
         when(this.signUpUseCase.execute(any(SignUpRequest.class), any()))
-                .thenReturn(auth);
+                .thenReturn(new SignUpResponse(
+                        auth,
+                        Optional.of(new AuthResponse(ACCESS_TOKEN, REFRESH_TOKEN, Optional.empty()))
+                ));
 
         this.mvc.perform(post("/auth/signup")
                         .header("x-api-key", MOBILE_API_KEY)
@@ -189,7 +193,35 @@ public class AuthControllerIntegrationTest {
                                 "commercial", false
                         ))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.message").value("User registered. Check your email to verify your account."));
+                .andExpect(jsonPath("$.token").value(ACCESS_TOKEN))
+                .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN));
+
+        verify(this.sendVerificationEmailUseCase).execute(any(VerificationEmailRequest.class));
+    }
+
+    @Test
+    void signUp_shouldReturnMessageAndSendVerificationEmailForNonMember() throws Exception {
+        Authentication auth = Authentication.create("admin@test.com", "hash", UserRole.ADMIN);
+        when(this.clientVerifier.verify(WEB_API_KEY))
+                .thenReturn(new ApiClient("web", UserRole.ADMIN));
+        when(this.signUpUseCase.execute(any(SignUpRequest.class), any()))
+                .thenReturn(new SignUpResponse(auth, Optional.empty()));
+
+        this.mvc.perform(post("/auth/signup")
+                        .header("x-api-key", WEB_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(this.json(Map.of(
+                                "name", "Admin User",
+                                "email", "admin@test.com",
+                                "password", "StrongPass1!",
+                                "terms", true,
+                                "termsVersion", "v1",
+                                "commercial", false
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("User registered. Check your email to verify your account."))
+                .andExpect(jsonPath("$.token").doesNotExist())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist());
 
         verify(this.sendVerificationEmailUseCase).execute(any(VerificationEmailRequest.class));
     }

@@ -146,6 +146,7 @@ Response `200`:
   "name": "Sebastian Sanchez",
   "username": "sebas",
   "email": "test@example.com",
+  "isEmailVerified": true,
   "phoneNumber": "+573001112233",
   "gender": "MALE",
   "avatarUrl": "users/00000000-0000-0000-0000-000000000000/avatar.webp",

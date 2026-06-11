@@ -107,15 +107,16 @@ export async function backfillServicesFromLegacy(): Promise<void> {
       await userDb.query(
         `
           insert into users (
-            id, name, username, email, gender, phone_number, avatar_url,
+            id, name, username, email, email_verified, gender, phone_number, avatar_url,
             username_changed_at, username_prev_changed_at, lang,
             private_profile, status, created_at, updated_at
           )
-          values ($1, $2, $3, $4, $5, $6, $7, null, null, $8, $9, $10, $11, $12)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, null, null, $9, $10, $11, $12, $13)
           on conflict (id) do update set
             name = excluded.name,
             username = excluded.username,
             email = excluded.email,
+            email_verified = excluded.email_verified,
             gender = excluded.gender,
             phone_number = excluded.phone_number,
             avatar_url = excluded.avatar_url,
@@ -129,6 +130,7 @@ export async function backfillServicesFromLegacy(): Promise<void> {
           user.name,
           username,
           user.email,
+          user.is_email_verified,
           user.gender,
           user.phone,
           user.avatar_url,

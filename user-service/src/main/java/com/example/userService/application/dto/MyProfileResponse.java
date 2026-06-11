@@ -11,6 +11,7 @@ public record MyProfileResponse(
         String name,
         String username,
         String email,
+        boolean isEmailVerified,
         String phoneNumber,
         UserGender gender,
         String avatarUrl,

@@ -105,6 +105,7 @@ public class UserControllerIntegrationTest {
                         "Sebastian",
                         "sebas",
                         "sebas@test.com",
+                        true,
                         "+573001112233",
                         UserGender.MALE,
                         "avatar-key",
@@ -117,7 +118,8 @@ public class UserControllerIntegrationTest {
         this.mvc.perform(get("/users/me").header(HttpHeaders.AUTHORIZATION, this.bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(USER_ID.toString()))
-                .andExpect(jsonPath("$.email").value("sebas@test.com"));
+                .andExpect(jsonPath("$.email").value("sebas@test.com"))
+                .andExpect(jsonPath("$.isEmailVerified").value(true));
     }
 
     @Test

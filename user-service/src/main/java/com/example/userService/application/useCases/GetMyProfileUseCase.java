@@ -45,6 +45,7 @@ public class GetMyProfileUseCase {
                 user.getName(),
                 user.getUserName(),
                 user.getEmail(),
+                user.isEmailVerified(),
                 user.getPhoneNumber(),
                 user.getGender(),
                 user.getAvatarUrl(),

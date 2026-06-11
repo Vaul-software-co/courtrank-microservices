@@ -11,6 +11,7 @@ import com.example.userService.application.useCases.GetInternalUserSummaryUseCas
 import com.example.userService.application.useCases.GetInternalUsersByIdsUseCase;
 import com.example.userService.application.useCases.GetMyProfileUseCase;
 import com.example.userService.application.useCases.GetUserPublicProfileUseCase;
+import com.example.userService.application.useCases.MarkUserEmailVerifiedFromAuthEventUseCase;
 import com.example.userService.application.useCases.RemoveMyAvatarUseCase;
 import com.example.userService.application.useCases.RestoreUserFromAuthEventUseCase;
 import com.example.userService.application.useCases.SearchUsersUseCase;
@@ -53,6 +54,14 @@ public class UserUseCaseConfig {
             UserAuditLogger auditLogger
     ) {
         return new RestoreUserFromAuthEventUseCase(userRepository, auditLogger);
+    }
+
+    @Bean
+    public MarkUserEmailVerifiedFromAuthEventUseCase markUserEmailVerifiedFromAuthEventUseCase(
+            UserRepository userRepository,
+            UserAuditLogger auditLogger
+    ) {
+        return new MarkUserEmailVerifiedFromAuthEventUseCase(userRepository, auditLogger);
     }
 
     @Bean

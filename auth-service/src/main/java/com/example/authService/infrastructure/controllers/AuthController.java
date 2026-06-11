@@ -15,6 +15,7 @@ import com.example.authService.application.dto.RevokeSessionRequest;
 import com.example.authService.application.dto.SessionSummary;
 import com.example.authService.application.dto.SignInRequest;
 import com.example.authService.application.dto.SignUpRequest;
+import com.example.authService.application.dto.SignUpResponse;
 import com.example.authService.application.dto.UpdateDataConsentRequest;
 import com.example.authService.application.dto.UpdateDataConsentResponse;
 import com.example.authService.application.dto.VerificationEmailRequest;
@@ -134,13 +135,18 @@ public class AuthController {
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, String> signUp(
+    public Map<String, Object> signUp(
             @Valid @RequestBody SignUpRequest request,
             HttpServletRequest servletRequest
     ) {
         HttpContext http = this.httpContext(servletRequest);
-        Authentication auth = this.signUpUseCase.execute(request, http);
+        SignUpResponse response = this.signUpUseCase.execute(request, http);
+        Authentication auth = response.authentication();
         this.sendVerificationEmailUseCase.execute(new VerificationEmailRequest(auth.getId(), auth.getEmail(), null));
+
+        if (response.auth().isPresent()) {
+            return this.tokenResponse(response.auth().orElseThrow());
+        }
 
         return Map.of("message", "User registered. Check your email to verify your account.");
     }

@@ -1,6 +1,7 @@
 package com.example.authService.unit.infrastructure.events;
 
 import com.example.authService.application.events.UserDeletedEvent;
+import com.example.authService.application.events.UserEmailVerifiedEvent;
 import com.example.authService.application.events.UserRegisteredEvent;
 import com.example.authService.application.events.UserRestoredEvent;
 import com.example.authService.domain.enums.UserRole;
@@ -35,6 +36,7 @@ public class KafkaAuthEventPublisherTest {
                 "Test User",
                 "testuser",
                 UserRole.MEMBER,
+                false,
                 "v1",
                 true,
                 Instant.parse("2026-01-01T00:00:00Z")
@@ -48,6 +50,7 @@ public class KafkaAuthEventPublisherTest {
         assertEquals(userId.toString(), json.get("aggregateId").asText());
         assertEquals("auth-service", json.get("source").asText());
         assertEquals("test@test.com", json.get("payload").get("email").asText());
+        assertEquals(false, json.get("payload").get("emailVerified").asBoolean());
     }
 
     @Test
@@ -63,6 +66,7 @@ public class KafkaAuthEventPublisherTest {
                 "Test User",
                 "testuser",
                 UserRole.MEMBER,
+                false,
                 "v1",
                 false,
                 Instant.parse("2026-01-01T00:00:00Z")
@@ -95,6 +99,28 @@ public class KafkaAuthEventPublisherTest {
 
         JsonNode json = objectMapper.readTree(payload.getValue());
         assertEquals("USER_DELETED", json.get("eventType").asText());
+        assertEquals(userId.toString(), json.get("aggregateId").asText());
+        assertEquals("test@test.com", json.get("payload").get("email").asText());
+    }
+
+    @Test
+    void publishUserEmailVerified_shouldSendUserEmailVerifiedEventToKafka() throws Exception {
+        KafkaTemplate<String, String> kafkaTemplate = mock(KafkaTemplate.class);
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        KafkaAuthEventPublisher publisher = new KafkaAuthEventPublisher(kafkaTemplate, objectMapper, TOPIC);
+        UUID userId = UUID.randomUUID();
+
+        publisher.publishUserEmailVerified(new UserEmailVerifiedEvent(
+                userId,
+                "test@test.com",
+                Instant.parse("2026-01-01T00:00:00Z")
+        ));
+
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(kafkaTemplate).send(eq(TOPIC), eq(userId.toString()), payload.capture());
+
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertEquals("USER_EMAIL_VERIFIED", json.get("eventType").asText());
         assertEquals(userId.toString(), json.get("aggregateId").asText());
         assertEquals("test@test.com", json.get("payload").get("email").asText());
     }

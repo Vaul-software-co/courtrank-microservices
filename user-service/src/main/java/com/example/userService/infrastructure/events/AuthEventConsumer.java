@@ -4,6 +4,7 @@ import com.example.userService.application.dto.CreateUserRequest;
 import com.example.userService.application.dto.RestoreUserRequest;
 import com.example.userService.application.useCases.CreateUserFromAuthEventUseCase;
 import com.example.userService.application.useCases.DeleteUserFromAuthEventUseCase;
+import com.example.userService.application.useCases.MarkUserEmailVerifiedFromAuthEventUseCase;
 import com.example.userService.application.useCases.RestoreUserFromAuthEventUseCase;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -23,22 +24,26 @@ public class AuthEventConsumer {
     private static final String USER_REGISTERED = "USER_REGISTERED";
     private static final String USER_RESTORED = "USER_RESTORED";
     private static final String USER_DELETED = "USER_DELETED";
+    private static final String USER_EMAIL_VERIFIED = "USER_EMAIL_VERIFIED";
 
     private final ObjectMapper objectMapper;
     private final CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase;
     private final RestoreUserFromAuthEventUseCase restoreUserFromAuthEventUseCase;
     private final DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase;
+    private final MarkUserEmailVerifiedFromAuthEventUseCase markUserEmailVerifiedFromAuthEventUseCase;
 
     public AuthEventConsumer(
             ObjectMapper objectMapper,
             CreateUserFromAuthEventUseCase createUserFromAuthEventUseCase,
             RestoreUserFromAuthEventUseCase restoreUserFromAuthEventUseCase,
-            DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase
+            DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase,
+            MarkUserEmailVerifiedFromAuthEventUseCase markUserEmailVerifiedFromAuthEventUseCase
     ) {
         this.objectMapper = objectMapper;
         this.createUserFromAuthEventUseCase = createUserFromAuthEventUseCase;
         this.restoreUserFromAuthEventUseCase = restoreUserFromAuthEventUseCase;
         this.deleteUserFromAuthEventUseCase = deleteUserFromAuthEventUseCase;
+        this.markUserEmailVerifiedFromAuthEventUseCase = markUserEmailVerifiedFromAuthEventUseCase;
     }
 
     @KafkaListener(
@@ -99,6 +104,23 @@ public class AuthEventConsumer {
             return;
         }
 
+        if (USER_EMAIL_VERIFIED.equals(event.eventType())) {
+            logger.info(
+                    "Processing auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            this.markUserEmailVerifiedFromAuthEventUseCase.execute(event.aggregateId());
+            logger.info(
+                    "Processed auth event type={} eventId={} aggregateId={}",
+                    event.eventType(),
+                    event.eventId(),
+                    event.aggregateId()
+            );
+            return;
+        }
+
         logger.debug("Ignoring auth event type={}", event.eventType());
     }
 
@@ -115,7 +137,8 @@ public class AuthEventConsumer {
                 UUID.fromString(payload.required("id").asText()),
                 payload.required("name").asText(),
                 this.nullableText(payload.get("username")),
-                payload.required("email").asText()
+                payload.required("email").asText(),
+                payload.path("emailVerified").asBoolean(false)
         );
     }
 
@@ -124,7 +147,8 @@ public class AuthEventConsumer {
                 UUID.fromString(payload.required("id").asText()),
                 payload.required("name").asText(),
                 this.nullableText(payload.get("username")),
-                payload.required("email").asText()
+                payload.required("email").asText(),
+                payload.path("emailVerified").asBoolean(false)
         );
     }
 

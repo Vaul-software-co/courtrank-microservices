@@ -7,6 +7,7 @@ import com.example.authService.application.ports.security.PasswordHasher;
 import com.example.authService.application.ports.security.TokenHasher;
 import com.example.authService.application.ports.security.TokenService;
 import com.example.authService.application.ports.user.UsernameAvailabilityVerifier;
+import com.example.authService.application.services.SessionIssuer;
 import com.example.authService.application.useCases.DeleteUserUseCase;
 import com.example.authService.application.useCases.SignInUseCase;
 import com.example.authService.application.useCases.SignUpUseCase;
@@ -24,21 +25,26 @@ public class AuthUseCaseConfig {
     public SignInUseCase signInUseCase(
             AuthenticationRepository authenticationRepository,
             PasswordHasher passwordHasher,
-            SessionRepository sessionRepository,
-            TokenService tokenService,
-            TokenHasher tokenHasher,
             WorkerAccessVerifier workerAccess,
-            AuditLogger auditLogger
+            AuditLogger auditLogger,
+            SessionIssuer sessionIssuer
     ) {
         return new SignInUseCase(
                 authenticationRepository,
                 passwordHasher,
-                sessionRepository,
-                tokenService,
-                tokenHasher,
                 workerAccess,
-                auditLogger
+                auditLogger,
+                sessionIssuer
         );
+    }
+
+    @Bean
+    public SessionIssuer sessionIssuer(
+            SessionRepository sessionRepository,
+            TokenService tokenService,
+            TokenHasher tokenHasher
+    ) {
+        return new SessionIssuer(sessionRepository, tokenService, tokenHasher);
     }
 
     @Bean
@@ -48,7 +54,8 @@ public class AuthUseCaseConfig {
             AuthEventPublisher authEventPublisher,
             UsernameAvailabilityVerifier usernameAvailabilityVerifier,
             PasswordPolicy passwordPolicy,
-            AuditLogger auditLogger
+            AuditLogger auditLogger,
+            SessionIssuer sessionIssuer
     ){
         return new SignUpUseCase(
                 authenticationRepository,
@@ -56,7 +63,8 @@ public class AuthUseCaseConfig {
                 authEventPublisher,
                 usernameAvailabilityVerifier,
                 passwordPolicy,
-                auditLogger
+                auditLogger,
+                sessionIssuer
         );
     }
 

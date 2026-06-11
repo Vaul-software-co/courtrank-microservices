@@ -8,19 +8,15 @@ import com.example.authService.application.ports.authorization.WorkerAccessVerif
 import com.example.authService.application.ports.audit.AuditEvent;
 import com.example.authService.application.ports.audit.AuditEventType;
 import com.example.authService.application.ports.audit.AuditLogger;
+import com.example.authService.application.services.SessionIssuer;
 import com.example.authService.domain.entity.Authentication;
-import com.example.authService.domain.entity.Session;
-import com.example.authService.domain.enums.TokenType;
 import com.example.authService.domain.enums.UserRole;
 import com.example.authService.domain.exceptions.DisabledAccountException;
 import com.example.authService.domain.exceptions.EmailNotVerifiedException;
 import com.example.authService.domain.exceptions.ForbiddenException;
 import com.example.authService.domain.exceptions.InvalidCredentialsException;
 import com.example.authService.domain.repository.AuthenticationRepository;
-import com.example.authService.domain.repository.SessionRepository;
 import com.example.authService.application.ports.security.PasswordHasher;
-import com.example.authService.application.ports.security.TokenHasher;
-import com.example.authService.application.ports.security.TokenService;
 
 import java.time.Instant;
 import java.util.Map;
@@ -31,28 +27,22 @@ public class SignInUseCase {
 
     private final AuthenticationRepository authenticationRepository;
     private final PasswordHasher passwordHasher;
-    private final SessionRepository sessionRepository;
-    private final TokenService tokenService;
-    private final TokenHasher tokenHasher;
     private final WorkerAccessVerifier workerAccess;
     private final AuditLogger auditLogger;
+    private final SessionIssuer sessionIssuer;
 
     public SignInUseCase(
             AuthenticationRepository authenticationRepository,
             PasswordHasher passwordHasher,
-            SessionRepository sessionRepository,
-            TokenService tokenService,
-            TokenHasher tokenHasher,
             WorkerAccessVerifier workerAccess,
-            AuditLogger auditLogger
+            AuditLogger auditLogger,
+            SessionIssuer sessionIssuer
     ) {
         this.authenticationRepository = authenticationRepository;
         this.passwordHasher = passwordHasher;
-        this.sessionRepository = sessionRepository;
-        this.tokenService = tokenService;
-        this.tokenHasher = tokenHasher;
         this.workerAccess = workerAccess;
         this.auditLogger = auditLogger;
+        this.sessionIssuer = sessionIssuer;
     }
 
     public AuthResponse execute(SignInRequest request, HttpContext http) {
@@ -70,7 +60,7 @@ public class SignInUseCase {
             throw new DisabledAccountException();
         }
 
-        if (!auth.isEmailVerified()) {
+        if (!auth.isEmailVerified() && !auth.getRole().equals(UserRole.MEMBER)) {
             this.auditSignInFailure(AuditEventType.AUTH_SIGN_IN_UNVERIFIED_EMAIL, auth, http, "EMAIL_NOT_VERIFIED");
             throw new EmailNotVerifiedException();
         }
@@ -91,14 +81,7 @@ public class SignInUseCase {
             clubId = access.defaultClubId();
         }
 
-        String refreshToken = this.tokenService.generateToken(auth.getId(), TokenType.REFRESH);
-
-        String hashedRefreshToken = this.tokenHasher.hash(refreshToken);
-
-        Session session = Session.create(auth.getId(), hashedRefreshToken, http.client(), http.ip(), http.userAgent());
-
-        this.sessionRepository.save(session);
-        String accessToken = this.tokenService.generateAccessToken(auth.getId(), session.getId(), auth.getRole());
+        AuthResponse response = this.sessionIssuer.issue(auth, http);
         this.auditLogger.log(new AuditEvent(
                 AuditEventType.AUTH_SIGN_IN_SUCCESS,
                 auth.getId(),
@@ -106,13 +89,12 @@ public class SignInUseCase {
                 http.traceId(),
                 Map.of(
                         "client", http.client(),
-                        "ip", http.ip(),
-                        "sessionId", session.getId().toString()
+                        "ip", http.ip()
                 ),
                 Instant.now()
         ));
 
-        return new AuthResponse(accessToken, refreshToken, Optional.ofNullable(clubId));
+        return new AuthResponse(response.accessToken(), response.refreshToken(), Optional.ofNullable(clubId));
     }
 
     private void auditSignInFailure(AuditEventType eventType, Authentication auth, HttpContext http, String reason) {

@@ -11,6 +11,7 @@ public record UserRestoredEvent(
         String name,
         String username,
         UserRole role,
+        boolean emailVerified,
         String acceptedTermsVersion,
         boolean acceptedDataCommercialization,
         Instant occurredAt

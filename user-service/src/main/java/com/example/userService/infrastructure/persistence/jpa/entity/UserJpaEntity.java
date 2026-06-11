@@ -28,6 +28,9 @@ public class UserJpaEntity {
     @Column(nullable = false)
     private String email;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified;
+
     @Enumerated(EnumType.STRING)
     private UserGender gender;
 
@@ -66,6 +69,7 @@ public class UserJpaEntity {
             String name,
             String userName,
             String email,
+            boolean emailVerified,
             UserGender gender,
             String phoneNumber,
             String avatarUrl,
@@ -81,6 +85,7 @@ public class UserJpaEntity {
         this.name = name;
         this.userName = userName;
         this.email = email;
+        this.emailVerified = emailVerified;
         this.gender = gender;
         this.phoneNumber = phoneNumber;
         this.avatarUrl = avatarUrl;
@@ -99,6 +104,7 @@ public class UserJpaEntity {
                 user.getName(),
                 user.getUserName(),
                 user.getEmail(),
+                user.isEmailVerified(),
                 user.getGender(),
                 user.getPhoneNumber(),
                 user.getAvatarUrl(),
@@ -118,6 +124,7 @@ public class UserJpaEntity {
                 this.name,
                 this.userName,
                 this.email,
+                this.emailVerified,
                 this.gender,
                 this.phoneNumber,
                 this.avatarUrl,

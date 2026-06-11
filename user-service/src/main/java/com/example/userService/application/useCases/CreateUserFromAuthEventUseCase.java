@@ -69,7 +69,7 @@ public class CreateUserFromAuthEventUseCase {
             }
         }
 
-        User newUser = User.create(request.id(), request.name(), username, request.email());
+        User newUser = User.create(request.id(), request.name(), username, request.email(), request.emailVerified());
 
         this.userRepository.save(newUser);
         this.auditLogger.log(new UserAuditEvent(

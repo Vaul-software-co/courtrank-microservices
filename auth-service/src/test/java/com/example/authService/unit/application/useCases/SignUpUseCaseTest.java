@@ -1,7 +1,9 @@
 package com.example.authService.unit.application.useCases;
 
+import com.example.authService.application.dto.AuthResponse;
 import com.example.authService.application.dto.HttpContext;
 import com.example.authService.application.dto.SignUpRequest;
+import com.example.authService.application.dto.SignUpResponse;
 import com.example.authService.application.events.UserRegisteredEvent;
 import com.example.authService.application.events.UserRestoredEvent;
 import com.example.authService.application.ports.AuthEventPublisher;
@@ -10,6 +12,7 @@ import com.example.authService.application.ports.audit.AuditEventType;
 import com.example.authService.application.ports.audit.AuditLogger;
 import com.example.authService.application.ports.security.PasswordHasher;
 import com.example.authService.application.ports.user.UsernameAvailabilityVerifier;
+import com.example.authService.application.services.SessionIssuer;
 import com.example.authService.application.useCases.SignUpUseCase;
 import com.example.authService.domain.entity.Authentication;
 import com.example.authService.domain.enums.UserRole;
@@ -58,6 +61,9 @@ public class SignUpUseCaseTest {
     @Mock
     AuditLogger auditLogger;
 
+    @Mock
+    SessionIssuer sessionIssuer;
+
     @InjectMocks
     SignUpUseCase signUpUseCase;
 
@@ -67,12 +73,21 @@ public class SignUpUseCaseTest {
     private static final String PASSWORD = "StrongPass1!";
     private static final String PASSWORD_HASH = "hashed-password";
     private static final String TERMS_VERSION = "v1";
+    private static final String ACCESS_TOKEN = "access-token";
+    private static final String REFRESH_TOKEN = "refresh-token";
 
     private final HttpContext http = new HttpContext(
             "web",
             "127.0.0.1",
             "Safari",
             UserRole.MEMBER
+    );
+
+    private final HttpContext adminHttp = new HttpContext(
+            "web",
+            "127.0.0.1",
+            "Safari",
+            UserRole.ADMIN
     );
 
     private SignUpRequest createRequest(boolean terms, boolean commercial) {
@@ -96,11 +111,14 @@ public class SignUpUseCaseTest {
         when(this.authRepository.findByEmailIncludingDeleted(EMAIL))
                 .thenReturn(Optional.empty());
 
-        this.signUpUseCase.execute(request, this.http);
-
         ArgumentCaptor<Authentication> authCaptor = ArgumentCaptor.forClass(Authentication.class);
         ArgumentCaptor<UserRegisteredEvent> eventCaptor = ArgumentCaptor.forClass(UserRegisteredEvent.class);
         ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
+
+        when(this.sessionIssuer.issue(org.mockito.ArgumentMatchers.any(Authentication.class), org.mockito.ArgumentMatchers.eq(this.http)))
+                .thenReturn(new AuthResponse(ACCESS_TOKEN, REFRESH_TOKEN, Optional.empty()));
+
+        SignUpResponse response = this.signUpUseCase.execute(request, this.http);
 
         verify(this.passwordPolicy).validate(PASSWORD);
         verify(this.authRepository).save(authCaptor.capture());
@@ -133,6 +151,11 @@ public class SignUpUseCaseTest {
         assertEquals(savedAuth.getId(), auditEvent.actorId());
         assertEquals(savedAuth.getId(), auditEvent.targetId());
         assertEquals("web", auditEvent.metadata().get("client"));
+        assertEquals(savedAuth, response.authentication());
+        assertTrue(response.auth().isPresent());
+        assertEquals(ACCESS_TOKEN, response.auth().orElseThrow().accessToken());
+        assertEquals(REFRESH_TOKEN, response.auth().orElseThrow().refreshToken());
+        verify(this.sessionIssuer).issue(savedAuth, this.http);
     }
 
     @Test
@@ -150,6 +173,7 @@ public class SignUpUseCaseTest {
         verifyNoInteractions(this.eventPublisher);
         verifyNoInteractions(this.usernameAvailabilityVerifier);
         verifyNoInteractions(this.auditLogger);
+        verifyNoInteractions(this.sessionIssuer);
     }
 
     @Test
@@ -171,6 +195,7 @@ public class SignUpUseCaseTest {
         verifyNoInteractions(this.eventPublisher);
         verifyNoInteractions(this.usernameAvailabilityVerifier);
         verifyNoInteractions(this.auditLogger);
+        verifyNoInteractions(this.sessionIssuer);
     }
 
     @Test
@@ -195,6 +220,7 @@ public class SignUpUseCaseTest {
         verify(this.authRepository, never()).save(org.mockito.ArgumentMatchers.any());
         verifyNoInteractions(this.eventPublisher);
         verifyNoInteractions(this.usernameAvailabilityVerifier);
+        verifyNoInteractions(this.sessionIssuer);
         verify(this.auditLogger).log(auditCaptor.capture());
 
         AuditEvent auditEvent = auditCaptor.getValue();
@@ -214,10 +240,13 @@ public class SignUpUseCaseTest {
         when(this.authRepository.findByEmailIncludingDeleted(EMAIL))
                 .thenReturn(Optional.of(existingAuth));
 
-        this.signUpUseCase.execute(request, this.http);
-
         ArgumentCaptor<UserRestoredEvent> eventCaptor = ArgumentCaptor.forClass(UserRestoredEvent.class);
         ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
+
+        when(this.sessionIssuer.issue(existingAuth, this.http))
+                .thenReturn(new AuthResponse(ACCESS_TOKEN, REFRESH_TOKEN, Optional.empty()));
+
+        SignUpResponse response = this.signUpUseCase.execute(request, this.http);
 
         assertFalse(existingAuth.isDeleted());
         assertTrue(existingAuth.isActive());
@@ -246,5 +275,29 @@ public class SignUpUseCaseTest {
         assertEquals(AuditEventType.AUTH_SIGN_UP_RESTORED_USER, auditEvent.type());
         assertEquals(existingAuth.getId(), auditEvent.actorId());
         assertEquals(existingAuth.getId(), auditEvent.targetId());
+        assertEquals(existingAuth, response.authentication());
+        assertTrue(response.auth().isPresent());
+        verify(this.sessionIssuer).issue(existingAuth, this.http);
+    }
+
+    @Test
+    void execute_shouldNotIssueSessionWhenRegisteredUserIsNotMember() {
+        SignUpRequest request = this.createRequest(true, false);
+
+        when(this.passwordHasher.hashPassword(PASSWORD))
+                .thenReturn(PASSWORD_HASH);
+        when(this.authRepository.findByEmailIncludingDeleted(EMAIL))
+                .thenReturn(Optional.empty());
+
+        SignUpResponse response = this.signUpUseCase.execute(request, this.adminHttp);
+
+        ArgumentCaptor<Authentication> authCaptor = ArgumentCaptor.forClass(Authentication.class);
+        verify(this.authRepository).save(authCaptor.capture());
+
+        Authentication savedAuth = authCaptor.getValue();
+        assertEquals(UserRole.ADMIN, savedAuth.getRole());
+        assertEquals(savedAuth, response.authentication());
+        assertTrue(response.auth().isEmpty());
+        verifyNoInteractions(this.sessionIssuer);
     }
 }
