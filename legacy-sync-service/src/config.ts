@@ -20,6 +20,7 @@ export const config = {
   legacyDatabaseUrl: required("LEGACY_DATABASE_URL"),
   authDatabaseUrl: required("AUTH_DATABASE_URL"),
   userDatabaseUrl: required("USER_DATABASE_URL"),
+  socialDatabaseUrl: required("SOCIAL_DATABASE_URL"),
   kafkaBrokers: required("KAFKA_BROKERS").split(",").map((s) => s.trim()).filter(Boolean),
   kafkaClientId: process.env.KAFKA_CLIENT_ID?.trim() || "courtrank-legacy-sync",
   kafkaGroupId: process.env.KAFKA_GROUP_ID?.trim() || "courtrank-legacy-sync",

@@ -1,5 +1,8 @@
 package com.courtrank.userService.application.useCases;
 
+import com.courtrank.userService.application.events.UserProfileDeletedEvent;
+import com.courtrank.userService.application.ports.NoOpUserEventPublisher;
+import com.courtrank.userService.application.ports.UserEventPublisher;
 import com.courtrank.userService.application.ports.audit.UserAuditEvent;
 import com.courtrank.userService.application.ports.audit.UserAuditEventType;
 import com.courtrank.userService.application.ports.audit.UserAuditLogger;
@@ -14,10 +17,16 @@ import java.util.UUID;
 public class DeleteUserFromAuthEventUseCase {
     private final UserRepository userRepository;
     private final UserAuditLogger auditLogger;
+    private final UserEventPublisher eventPublisher;
 
     public DeleteUserFromAuthEventUseCase(UserRepository userRepository, UserAuditLogger auditLogger) {
+        this(userRepository, auditLogger, new NoOpUserEventPublisher());
+    }
+
+    public DeleteUserFromAuthEventUseCase(UserRepository userRepository, UserAuditLogger auditLogger, UserEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.auditLogger = auditLogger;
+        this.eventPublisher = eventPublisher;
     }
 
     public void execute(UUID userId) {
@@ -62,5 +71,8 @@ public class DeleteUserFromAuthEventUseCase {
                 ),
                 Instant.now()
         ));
+        if (this.eventPublisher != null) {
+            this.eventPublisher.publishUserProfileDeleted(new UserProfileDeletedEvent(user.getId(), Instant.now()));
+        }
     }
 }

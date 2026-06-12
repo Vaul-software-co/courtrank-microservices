@@ -55,8 +55,6 @@ JWT_PUBLIC_KEY=file:../secrets/jwt-public.pem
 AUTH_SERVICE_URL=http://localhost:8080/internal
 AUTH_SERVICE_API_KEY=change-me
 CORS_ALLOWED_ORIGINS=http://localhost:3000
-SEARCH_RATE_LIMIT_MAX_REQUESTS=30
-SEARCH_RATE_LIMIT_WINDOW_SECONDS=60
 
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 KAFKA_AUTH_EVENTS_TOPIC=auth.events
@@ -255,35 +253,9 @@ Response `200`:
 }
 ```
 
-### GET /users/search
-
-Searches visible public users by name or username.
-
-Query parameters:
-
-```txt
-q=sebas
-limit=20
-```
-
-Response `200`:
-
-```json
-[
-  {
-    "id": "00000000-0000-0000-0000-000000000000",
-    "name": "Sebastian Sanchez",
-    "username": "sebas",
-    "avatarUrl": null
-  }
-]
-```
-
-Social filtering such as blocked users should be composed by the BFF/social-service later.
-
 ### GET /users/{id}
 
-Returns the base public profile. Social fields such as follower counts, following counts, blocks, and viewer follow status belong to `social-service`.
+Returns the base public profile. Public profile search and social fields such as follower counts, following counts, blocks, and viewer follow status belong to `social-service`.
 
 Response `200`:
 
@@ -429,8 +401,8 @@ The old TypeScript BFF still owns several `/user` routes. The intended split is:
 | `PATCH /user/me` name, username, phone, gender | `user-service` via `/users/me` |
 | `PATCH /user/me/privacy` | `user-service` via `/users/me/privacy` |
 | `POST /user/me/lang` | `user-service` via `/users/me/lang` |
-| public user search base fields | `user-service` via `/users/search`; social enrichment in `social-service` |
-| public user profile base fields | `user-service` via `/users/{id}`; social enrichment in `social-service` |
+| public user search | `social-service` via `/social/users/search` |
+| public user profile base fields | `user-service` via `/users/{id}`; social-rich profile reads in `social-service` |
 | followers, following, follow requests, blocks, viewer follow status | `social-service` |
 | `clubsCount`, club memberships | club/member service |
 | `matchesPlayed`, tournament participation | competition/match service |

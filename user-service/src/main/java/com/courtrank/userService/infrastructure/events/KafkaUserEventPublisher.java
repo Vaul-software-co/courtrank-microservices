@@ -1,6 +1,8 @@
 package com.courtrank.userService.infrastructure.events;
 
+import com.courtrank.userService.application.events.UserProfileChangedEvent;
 import com.courtrank.userService.application.events.UserProfileCreatedEvent;
+import com.courtrank.userService.application.events.UserProfileDeletedEvent;
 import com.courtrank.userService.application.ports.UserEventPublisher;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +29,26 @@ public class KafkaUserEventPublisher implements UserEventPublisher {
     @Override
     public void publishUserProfileCreated(UserProfileCreatedEvent event) {
         this.publish("USER_PROFILE_CREATED", event.id(), event);
+    }
+
+    @Override
+    public void publishUserProfileUpdated(UserProfileChangedEvent event) {
+        this.publish("USER_PROFILE_UPDATED", event.id(), event);
+    }
+
+    @Override
+    public void publishUserProfileDeleted(UserProfileDeletedEvent event) {
+        this.publish("USER_PROFILE_DELETED", event.id(), event);
+    }
+
+    @Override
+    public void publishUserProfileRestored(UserProfileChangedEvent event) {
+        this.publish("USER_PROFILE_RESTORED", event.id(), event);
+    }
+
+    @Override
+    public void publishUserProfileBecamePublic(UserProfileChangedEvent event) {
+        this.publish("USER_PROFILE_BECAME_PUBLIC", event.id(), event);
     }
 
     private void publish(String eventType, UUID aggregateId, Object payload) {

@@ -2,9 +2,11 @@ import { Kafka } from "kafkajs";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import {
+  getServicesUserProjection,
   projectAuthDeletedToLegacy,
   projectAuthRegisteredToLegacy,
   projectUserProfileCreatedToLegacy,
+  upsertLegacyUser,
 } from "./projections/legacyUsers.js";
 import type {
   AuthEventMessage,
@@ -60,6 +62,28 @@ export async function startConsumer(): Promise<void> {
 
       if (topic === config.userEventsTopic && event.eventType === "USER_PROFILE_CREATED") {
         await projectUserProfileCreatedToLegacy(event.payload as UserProfileCreatedPayload);
+        return;
+      }
+
+      if (
+        topic === config.userEventsTopic &&
+        (event.eventType === "USER_PROFILE_UPDATED" ||
+          event.eventType === "USER_PROFILE_RESTORED" ||
+          event.eventType === "USER_PROFILE_BECAME_PUBLIC")
+      ) {
+        const projection = await getServicesUserProjection(event.aggregateId);
+        if (projection) {
+          await upsertLegacyUser(projection);
+        }
+        return;
+      }
+
+      if (topic === config.userEventsTopic && event.eventType === "USER_PROFILE_DELETED") {
+        await projectAuthDeletedToLegacy({
+          id: event.aggregateId,
+          email: "",
+          occurredAt: event.publishedAt,
+        });
         return;
       }
 

@@ -37,6 +37,16 @@ export interface UserProfileCreatedPayload {
   occurredAt?: string | null;
 }
 
+export interface UserProfileChangedPayload {
+  id: string;
+  name: string;
+  username?: string | null;
+  avatarUrl?: string | null;
+  privateProfile?: boolean | null;
+  status?: UserStatus | null;
+  occurredAt?: string | null;
+}
+
 export interface LegacyUserProjection {
   id: string;
   email: string;

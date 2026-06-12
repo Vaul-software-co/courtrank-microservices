@@ -6,13 +6,11 @@ import com.courtrank.userService.application.dto.RemoveMyAvatarResponse;
 import com.courtrank.userService.application.dto.UpdateMyAvatarResponse;
 import com.courtrank.userService.application.dto.UpdateMyLangResponse;
 import com.courtrank.userService.application.dto.UpdateMyPrivacyResponse;
-import com.courtrank.userService.application.dto.UserSearchResult;
 import com.courtrank.userService.application.ports.security.AuthSessionVerifier;
 import com.courtrank.userService.application.ports.security.TokenService;
 import com.courtrank.userService.application.useCases.GetMyProfileUseCase;
 import com.courtrank.userService.application.useCases.GetUserPublicProfileUseCase;
 import com.courtrank.userService.application.useCases.RemoveMyAvatarUseCase;
-import com.courtrank.userService.application.useCases.SearchUsersUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyAvatarUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyLangUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyPrivacyUseCase;
@@ -35,7 +33,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -80,9 +77,6 @@ public class UserControllerIntegrationTest {
 
     @MockitoBean
     GetUserPublicProfileUseCase getUserPublicProfileUseCase;
-
-    @MockitoBean
-    SearchUsersUseCase searchUsersUseCase;
 
     @MockitoBean
     UpdateMyAvatarUseCase updateMyAvatarUseCase;
@@ -205,33 +199,6 @@ public class UserControllerIntegrationTest {
         this.mvc.perform(delete("/users/me/avatar").header(HttpHeaders.AUTHORIZATION, this.bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.avatarUrl").doesNotExist());
-    }
-
-    @Test
-    void search_shouldValidateQueryLength() throws Exception {
-        this.stubAuthenticatedSession();
-
-        this.mvc.perform(get("/users/search")
-                        .header(HttpHeaders.AUTHORIZATION, this.bearer())
-                        .param("q", "a"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Validation failed"));
-    }
-
-    @Test
-    void search_shouldReturnResults() throws Exception {
-        this.stubAuthenticatedSession();
-        UUID targetId = UUID.randomUUID();
-        when(this.searchUsersUseCase.execute(any()))
-                .thenReturn(List.of(new UserSearchResult(targetId, "Player", "player", "avatar")));
-
-        this.mvc.perform(get("/users/search")
-                        .header(HttpHeaders.AUTHORIZATION, this.bearer())
-                        .param("q", "pla")
-                        .param("limit", "5"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(targetId.toString()))
-                .andExpect(jsonPath("$[0].username").value("player"));
     }
 
     @Test

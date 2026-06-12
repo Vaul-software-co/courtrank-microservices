@@ -1,0 +1,9 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/social"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("SOCIAL_DATABASE_URL")
+}

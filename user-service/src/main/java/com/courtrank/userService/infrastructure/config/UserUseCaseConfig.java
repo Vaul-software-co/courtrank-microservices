@@ -14,7 +14,6 @@ import com.courtrank.userService.application.useCases.GetUserPublicProfileUseCas
 import com.courtrank.userService.application.useCases.MarkUserEmailVerifiedFromAuthEventUseCase;
 import com.courtrank.userService.application.useCases.RemoveMyAvatarUseCase;
 import com.courtrank.userService.application.useCases.RestoreUserFromAuthEventUseCase;
-import com.courtrank.userService.application.useCases.SearchUsersUseCase;
 import com.courtrank.userService.application.useCases.UnbanUserProfileUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyAvatarUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyLangUseCase;
@@ -43,17 +42,19 @@ public class UserUseCaseConfig {
     @Bean
     public DeleteUserFromAuthEventUseCase deleteUserFromAuthEventUseCase(
             UserRepository userRepository,
-            UserAuditLogger auditLogger
+            UserAuditLogger auditLogger,
+            UserEventPublisher eventPublisher
     ) {
-        return new DeleteUserFromAuthEventUseCase(userRepository, auditLogger);
+        return new DeleteUserFromAuthEventUseCase(userRepository, auditLogger, eventPublisher);
     }
 
     @Bean
     public RestoreUserFromAuthEventUseCase restoreUserFromAuthEventUseCase(
             UserRepository userRepository,
-            UserAuditLogger auditLogger
+            UserAuditLogger auditLogger,
+            UserEventPublisher eventPublisher
     ) {
-        return new RestoreUserFromAuthEventUseCase(userRepository, auditLogger);
+        return new RestoreUserFromAuthEventUseCase(userRepository, auditLogger, eventPublisher);
     }
 
     @Bean
@@ -75,17 +76,19 @@ public class UserUseCaseConfig {
     @Bean
     public UpdateMyProfileUseCase updateMyProfileUseCase(
             UserRepository userRepository,
-            UserAuditLogger auditLogger
+            UserAuditLogger auditLogger,
+            UserEventPublisher eventPublisher
     ) {
-        return new UpdateMyProfileUseCase(userRepository, auditLogger);
+        return new UpdateMyProfileUseCase(userRepository, auditLogger, eventPublisher);
     }
 
     @Bean
     public UpdateMyPrivacyUseCase updateMyPrivacyUseCase(
             UserRepository userRepository,
-            UserAuditLogger auditLogger
+            UserAuditLogger auditLogger,
+            UserEventPublisher eventPublisher
     ) {
-        return new UpdateMyPrivacyUseCase(userRepository, auditLogger);
+        return new UpdateMyPrivacyUseCase(userRepository, auditLogger, eventPublisher);
     }
 
     @Bean
@@ -105,24 +108,21 @@ public class UserUseCaseConfig {
     }
 
     @Bean
-    public SearchUsersUseCase searchUsersUseCase(UserRepository userRepository) {
-        return new SearchUsersUseCase(userRepository);
-    }
-
-    @Bean
     public BanUserProfileUseCase banUserProfileUseCase(
             UserRepository userRepository,
-            UserAuditLogger auditLogger
+            UserAuditLogger auditLogger,
+            UserEventPublisher eventPublisher
     ) {
-        return new BanUserProfileUseCase(userRepository, auditLogger);
+        return new BanUserProfileUseCase(userRepository, auditLogger, eventPublisher);
     }
 
     @Bean
     public UnbanUserProfileUseCase unbanUserProfileUseCase(
             UserRepository userRepository,
-            UserAuditLogger auditLogger
+            UserAuditLogger auditLogger,
+            UserEventPublisher eventPublisher
     ) {
-        return new UnbanUserProfileUseCase(userRepository, auditLogger);
+        return new UnbanUserProfileUseCase(userRepository, auditLogger, eventPublisher);
     }
 
     @Bean
@@ -143,16 +143,18 @@ public class UserUseCaseConfig {
     @Bean
     public UpdateMyAvatarUseCase updateMyAvatarUseCase(
             UserRepository userRepository,
-            UserAuditLogger auditLogger
+            UserAuditLogger auditLogger,
+            UserEventPublisher eventPublisher
     ) {
-        return new UpdateMyAvatarUseCase(userRepository, auditLogger);
+        return new UpdateMyAvatarUseCase(userRepository, auditLogger, eventPublisher);
     }
 
     @Bean
     public RemoveMyAvatarUseCase removeMyAvatarUseCase(
             UserRepository userRepository,
-            UserAuditLogger auditLogger
+            UserAuditLogger auditLogger,
+            UserEventPublisher eventPublisher
     ) {
-        return new RemoveMyAvatarUseCase(userRepository, auditLogger);
+        return new RemoveMyAvatarUseCase(userRepository, auditLogger, eventPublisher);
     }
 }

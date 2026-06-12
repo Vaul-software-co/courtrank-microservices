@@ -4,7 +4,6 @@ import com.courtrank.userService.application.ports.security.TokenService;
 import com.courtrank.userService.application.ports.security.AuthSessionVerifier;
 import com.courtrank.userService.infrastructure.security.InternalApiKeyFilter;
 import com.courtrank.userService.infrastructure.security.JwtAuthenticationFilter;
-import com.courtrank.userService.infrastructure.security.SearchRateLimitFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,14 +38,6 @@ public class HttpSecurityConfig {
     }
 
     @Bean
-    public SearchRateLimitFilter searchRateLimitFilter(
-            @Value("${app.rate-limit.search.max-requests}") int maxRequests,
-            @Value("${app.rate-limit.search.window-seconds}") long windowSeconds
-    ) {
-        return new SearchRateLimitFilter(maxRequests, windowSeconds);
-    }
-
-    @Bean
     public CorsConfigurationSource corsConfigurationSource(
             @Value("${app.cors.allowed-origins}") String allowedOrigins
     ) {
@@ -67,7 +58,6 @@ public class HttpSecurityConfig {
             HttpSecurity http,
             InternalApiKeyFilter internalApiKeyFilter,
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            SearchRateLimitFilter searchRateLimitFilter,
             CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
         return http
@@ -97,12 +87,10 @@ public class HttpSecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/users/me/lang").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/users/me/avatar").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/users/me/avatar").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/users/search").authenticated()
                         .requestMatchers(HttpMethod.GET, "/users/**").authenticated()
                         .anyRequest().denyAll()
                 )
                 .addFilterBefore(internalApiKeyFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(searchRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

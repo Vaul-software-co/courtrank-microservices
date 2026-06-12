@@ -6,7 +6,6 @@ import com.courtrank.userService.application.dto.MyProfileResponse;
 import com.courtrank.userService.application.dto.PublicProfileResponse;
 import com.courtrank.userService.application.dto.RemoveMyAvatarRequest;
 import com.courtrank.userService.application.dto.RemoveMyAvatarResponse;
-import com.courtrank.userService.application.dto.SearchUsersRequest;
 import com.courtrank.userService.application.dto.TraceContext;
 import com.courtrank.userService.application.dto.UpdateMyAvatarRequest;
 import com.courtrank.userService.application.dto.UpdateMyAvatarResponse;
@@ -15,11 +14,9 @@ import com.courtrank.userService.application.dto.UpdateMyLangResponse;
 import com.courtrank.userService.application.dto.UpdateMyPrivacyRequest;
 import com.courtrank.userService.application.dto.UpdateMyPrivacyResponse;
 import com.courtrank.userService.application.dto.UpdateMyProfileRequest;
-import com.courtrank.userService.application.dto.UserSearchResult;
 import com.courtrank.userService.application.useCases.GetMyProfileUseCase;
 import com.courtrank.userService.application.useCases.GetUserPublicProfileUseCase;
 import com.courtrank.userService.application.useCases.RemoveMyAvatarUseCase;
-import com.courtrank.userService.application.useCases.SearchUsersUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyAvatarUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyLangUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyPrivacyUseCase;
@@ -46,7 +43,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -60,7 +56,6 @@ public class UserController {
     private final UpdateMyPrivacyUseCase updateMyPrivacyUseCase;
     private final UpdateMyLangUseCase updateMyLangUseCase;
     private final GetUserPublicProfileUseCase getUserPublicProfileUseCase;
-    private final SearchUsersUseCase searchUsersUseCase;
     private final UpdateMyAvatarUseCase updateMyAvatarUseCase;
     private final RemoveMyAvatarUseCase removeMyAvatarUseCase;
 
@@ -70,7 +65,6 @@ public class UserController {
             UpdateMyPrivacyUseCase updateMyPrivacyUseCase,
             UpdateMyLangUseCase updateMyLangUseCase,
             GetUserPublicProfileUseCase getUserPublicProfileUseCase,
-            SearchUsersUseCase searchUsersUseCase,
             UpdateMyAvatarUseCase updateMyAvatarUseCase,
             RemoveMyAvatarUseCase removeMyAvatarUseCase
     ) {
@@ -79,7 +73,6 @@ public class UserController {
         this.updateMyPrivacyUseCase = updateMyPrivacyUseCase;
         this.updateMyLangUseCase = updateMyLangUseCase;
         this.getUserPublicProfileUseCase = getUserPublicProfileUseCase;
-        this.searchUsersUseCase = searchUsersUseCase;
         this.updateMyAvatarUseCase = updateMyAvatarUseCase;
         this.removeMyAvatarUseCase = removeMyAvatarUseCase;
     }
@@ -158,19 +151,6 @@ public class UserController {
                 new RemoveMyAvatarRequest(principal.userId()),
                 TraceContext.fromRequestId(requestId)
         );
-    }
-
-    @GetMapping("/search")
-    public List<UserSearchResult> search(
-            @RequestParam
-            @Size(min = 2, max = 100)
-            String q,
-            @RequestParam(defaultValue = "20")
-            @Min(1)
-            @Max(50)
-            int limit
-    ) {
-        return this.searchUsersUseCase.execute(new SearchUsersRequest(q, limit, List.of()));
     }
 
     @GetMapping("/{id}")

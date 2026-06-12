@@ -9,7 +9,6 @@ import com.courtrank.userService.application.dto.GetProfileRequest;
 import com.courtrank.userService.application.dto.GetPublicProfileRequest;
 import com.courtrank.userService.application.dto.RemoveMyAvatarRequest;
 import com.courtrank.userService.application.dto.RestoreUserRequest;
-import com.courtrank.userService.application.dto.SearchUsersRequest;
 import com.courtrank.userService.application.dto.UnbanUserProfileRequest;
 import com.courtrank.userService.application.dto.UpdateMyAvatarRequest;
 import com.courtrank.userService.application.dto.UpdateMyLangRequest;
@@ -90,16 +89,6 @@ class DtoValidationTest {
         this.assertValid(new GetInternalUsersByIdsRequest(List.of(USER_ID)));
 
         this.assertInvalid(new GetInternalUsersByIdsRequest(List.of()));
-    }
-
-    @Test
-    void searchUsersRequest_shouldEnforceQueryAndLimitBounds() {
-        this.assertValid(new SearchUsersRequest("sebas", 10, List.of(USER_ID)));
-
-        this.assertInvalid(new SearchUsersRequest("", 10, List.of()));
-        this.assertInvalid(new SearchUsersRequest("s", 10, List.of()));
-        this.assertInvalid(new SearchUsersRequest("sebas", 0, List.of()));
-        this.assertInvalid(new SearchUsersRequest("sebas", 51, List.of()));
     }
 
     @Test

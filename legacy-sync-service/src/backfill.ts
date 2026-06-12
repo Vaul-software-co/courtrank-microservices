@@ -2,6 +2,7 @@ import { authDb, legacyDb, userDb } from "./db.js";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { getServicesUserProjection, upsertLegacyUser } from "./projections/legacyUsers.js";
+import { backfillLegacySocialFromServices, backfillSocialFromLegacy } from "./projections/socialUsers.js";
 
 async function availableUsernameForUserService(userId: string, username: string | null): Promise<string | null> {
   if (!username) return null;
@@ -45,6 +46,7 @@ export async function backfillLegacyFromServices(): Promise<void> {
   }
 
   logger.info("backfill legacy-from-services complete", { total });
+  await backfillLegacySocialFromServices();
 }
 
 export async function backfillServicesFromLegacy(): Promise<void> {
@@ -150,4 +152,5 @@ export async function backfillServicesFromLegacy(): Promise<void> {
   }
 
   logger.info("backfill services-from-legacy complete", { total });
+  await backfillSocialFromLegacy();
 }

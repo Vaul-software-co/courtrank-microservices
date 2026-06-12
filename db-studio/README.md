@@ -27,6 +27,7 @@ Then pull the schemas:
 cd db-studio
 npm run pull:user
 npm run pull:auth
+npm run pull:social
 ```
 
 ## Open Studio
@@ -43,7 +44,14 @@ Auth service DB:
 npm run studio:auth
 ```
 
+Social service DB:
+
+```bash
+npm run studio:social
+```
+
 URLs:
 
 - User DB Studio: http://localhost:5555
 - Auth DB Studio: http://localhost:5556
+- Social DB Studio: http://localhost:5557

@@ -1,6 +1,9 @@
 package com.courtrank.userService.application.useCases;
 
 import com.courtrank.userService.application.dto.RestoreUserRequest;
+import com.courtrank.userService.application.events.UserProfileChangedEvent;
+import com.courtrank.userService.application.ports.NoOpUserEventPublisher;
+import com.courtrank.userService.application.ports.UserEventPublisher;
 import com.courtrank.userService.application.ports.audit.UserAuditEvent;
 import com.courtrank.userService.application.ports.audit.UserAuditEventType;
 import com.courtrank.userService.application.ports.audit.UserAuditLogger;
@@ -16,10 +19,16 @@ import java.util.Optional;
 public class RestoreUserFromAuthEventUseCase {
     private final UserRepository userRepository;
     private final UserAuditLogger auditLogger;
+    private final UserEventPublisher eventPublisher;
 
     public RestoreUserFromAuthEventUseCase(UserRepository userRepository, UserAuditLogger auditLogger) {
+        this(userRepository, auditLogger, new NoOpUserEventPublisher());
+    }
+
+    public RestoreUserFromAuthEventUseCase(UserRepository userRepository, UserAuditLogger auditLogger, UserEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.auditLogger = auditLogger;
+        this.eventPublisher = eventPublisher;
     }
 
     public void execute(RestoreUserRequest request) {
@@ -41,6 +50,9 @@ public class RestoreUserFromAuthEventUseCase {
                     ),
                     Instant.now()
             ));
+            if (this.eventPublisher != null) {
+                this.eventPublisher.publishUserProfileRestored(this.toEvent(user));
+            }
             return;
         }
 
@@ -72,6 +84,13 @@ public class RestoreUserFromAuthEventUseCase {
                 ),
                 Instant.now()
         ));
+        if (this.eventPublisher != null) {
+            this.eventPublisher.publishUserProfileRestored(this.toEvent(existingUser));
+        }
+    }
+
+    private UserProfileChangedEvent toEvent(User user) {
+        return new UserProfileChangedEvent(user.getId(), user.getName(), user.getUserName(), user.getAvatarUrl(), user.isPrivateProfile(), user.getStatus(), Instant.now());
     }
 
     private void assertUsernameAvailable(RestoreUserRequest request) {

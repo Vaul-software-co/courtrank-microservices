@@ -43,6 +43,28 @@ services:
         max-size: 10m
         max-file: "5"
 
+  social-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/social-postgres.env
+    environment:
+      POSTGRES_DB: courtrank_social
+      POSTGRES_USER: courtrank_social_user
+    volumes:
+      - social_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U courtrank_social_user -d courtrank_social"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
   kafka:
     image: apache/kafka:3.7.1
     restart: unless-stopped
@@ -83,7 +105,8 @@ services:
     command: >
       "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic auth.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
       /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic audit.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
-      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic user.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;"
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic user.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic social.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;"
     restart: "no"
 
   api-gateway:
@@ -100,6 +123,8 @@ services:
         condition: service_healthy
       user-service:
         condition: service_healthy
+      social-service:
+        condition: service_healthy
     logging:
       driver: json-file
       options:
@@ -115,12 +140,15 @@ services:
       KAFKA_BROKERS: kafka:29092
       AUTH_EVENTS_TOPIC: auth.events
       USER_EVENTS_TOPIC: user.events
+      SOCIAL_DATABASE_URL: postgresql://courtrank_social_user:${SOCIAL_DATABASE_PASSWORD:?Set SOCIAL_DATABASE_PASSWORD}@social-postgres:5432/courtrank_social?schema=public
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       auth-postgres:
         condition: service_healthy
       user-postgres:
+        condition: service_healthy
+      social-postgres:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
@@ -228,7 +256,57 @@ services:
         max-size: 10m
         max-file: "5"
 
+  social-service:
+    image: ${SOCIAL_SERVICE_IMAGE:?Set SOCIAL_SERVICE_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/social-service.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,kafka}
+      SERVER_PORT: 8084
+      DATABASE_URL: jdbc:postgresql://social-postgres:5432/courtrank_social
+      DATABASE_USERNAME: courtrank_social_user
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      AUTH_SERVICE_URL: http://auth-service:8080/internal
+      USER_SERVICE_URL: http://user-service:8082
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_USER_EVENTS_TOPIC: user.events
+      KAFKA_SOCIAL_EVENTS_TOPIC: social.events
+      KAFKA_AUDIT_EVENTS_TOPIC: audit.events
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS}
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/jwt-public.pem
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    depends_on:
+      social-postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
 volumes:
   auth_postgres_data:
   user_postgres_data:
+  social_postgres_data:
   kafka_data:

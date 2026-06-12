@@ -3,6 +3,9 @@ package com.courtrank.userService.application.useCases;
 import com.courtrank.userService.application.dto.RemoveMyAvatarRequest;
 import com.courtrank.userService.application.dto.RemoveMyAvatarResponse;
 import com.courtrank.userService.application.dto.TraceContext;
+import com.courtrank.userService.application.events.UserProfileChangedEvent;
+import com.courtrank.userService.application.ports.NoOpUserEventPublisher;
+import com.courtrank.userService.application.ports.UserEventPublisher;
 import com.courtrank.userService.application.ports.audit.UserAuditEvent;
 import com.courtrank.userService.application.ports.audit.UserAuditEventType;
 import com.courtrank.userService.application.ports.audit.UserAuditLogger;
@@ -16,10 +19,16 @@ import java.util.Map;
 public class RemoveMyAvatarUseCase {
     private final UserRepository userRepository;
     private final UserAuditLogger auditLogger;
+    private final UserEventPublisher eventPublisher;
 
     public RemoveMyAvatarUseCase(UserRepository userRepository, UserAuditLogger auditLogger) {
+        this(userRepository, auditLogger, new NoOpUserEventPublisher());
+    }
+
+    public RemoveMyAvatarUseCase(UserRepository userRepository, UserAuditLogger auditLogger, UserEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.auditLogger = auditLogger;
+        this.eventPublisher = eventPublisher;
     }
 
     public RemoveMyAvatarResponse execute(RemoveMyAvatarRequest request, TraceContext trace) {
@@ -54,7 +63,14 @@ public class RemoveMyAvatarUseCase {
                 Map.of("previousAvatarUrl", previousAvatarUrl),
                 Instant.now()
         ));
+        if (this.eventPublisher != null) {
+            this.eventPublisher.publishUserProfileUpdated(this.toEvent(user));
+        }
 
         return new RemoveMyAvatarResponse(null, null);
+    }
+
+    private UserProfileChangedEvent toEvent(User user) {
+        return new UserProfileChangedEvent(user.getId(), user.getName(), user.getUserName(), user.getAvatarUrl(), user.isPrivateProfile(), user.getStatus(), Instant.now());
     }
 }

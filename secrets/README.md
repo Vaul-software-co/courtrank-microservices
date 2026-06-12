@@ -7,8 +7,10 @@ Create these files locally:
 ```txt
 auth-service.env
 user-service.env
+social-service.env
 auth-postgres.env
 user-postgres.env
+social-postgres.env
 jwt-private.pem
 jwt-public.pem
 ```
@@ -19,8 +21,10 @@ Use the example files in this directory as templates:
 cp secrets/compose.prod.env.example secrets/compose.prod.env
 cp secrets/auth-service.env.example secrets/auth-service.env
 cp secrets/user-service.env.example secrets/user-service.env
+cp secrets/social-service.env.example secrets/social-service.env
 cp secrets/auth-postgres.env.example secrets/auth-postgres.env
 cp secrets/user-postgres.env.example secrets/user-postgres.env
+cp secrets/social-postgres.env.example secrets/social-postgres.env
 ```
 
 Create the JWT key pair locally:

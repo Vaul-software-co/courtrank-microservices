@@ -3,6 +3,9 @@ package com.courtrank.userService.application.useCases;
 import com.courtrank.userService.application.dto.BanUserProfileRequest;
 import com.courtrank.userService.application.dto.TraceContext;
 import com.courtrank.userService.application.dto.UserProfileStatusResponse;
+import com.courtrank.userService.application.events.UserProfileChangedEvent;
+import com.courtrank.userService.application.ports.NoOpUserEventPublisher;
+import com.courtrank.userService.application.ports.UserEventPublisher;
 import com.courtrank.userService.application.ports.audit.UserAuditEvent;
 import com.courtrank.userService.application.ports.audit.UserAuditEventType;
 import com.courtrank.userService.application.ports.audit.UserAuditLogger;
@@ -17,10 +20,16 @@ import java.util.Map;
 public class BanUserProfileUseCase {
     private final UserRepository userRepository;
     private final UserAuditLogger auditLogger;
+    private final UserEventPublisher eventPublisher;
 
     public BanUserProfileUseCase(UserRepository userRepository, UserAuditLogger auditLogger) {
+        this(userRepository, auditLogger, new NoOpUserEventPublisher());
+    }
+
+    public BanUserProfileUseCase(UserRepository userRepository, UserAuditLogger auditLogger, UserEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.auditLogger = auditLogger;
+        this.eventPublisher = eventPublisher;
     }
 
     public UserProfileStatusResponse execute(BanUserProfileRequest request, TraceContext trace) {
@@ -57,7 +66,14 @@ public class BanUserProfileUseCase {
                 ),
                 Instant.now()
         ));
+        if (this.eventPublisher != null) {
+            this.eventPublisher.publishUserProfileUpdated(this.toEvent(user));
+        }
 
         return new UserProfileStatusResponse(user.getStatus());
+    }
+
+    private UserProfileChangedEvent toEvent(User user) {
+        return new UserProfileChangedEvent(user.getId(), user.getName(), user.getUserName(), user.getAvatarUrl(), user.isPrivateProfile(), user.getStatus(), Instant.now());
     }
 }

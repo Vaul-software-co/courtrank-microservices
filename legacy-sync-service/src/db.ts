@@ -6,7 +6,8 @@ const { Pool } = pg;
 export const legacyDb = new Pool({ connectionString: config.legacyDatabaseUrl });
 export const authDb = new Pool({ connectionString: config.authDatabaseUrl });
 export const userDb = new Pool({ connectionString: config.userDatabaseUrl });
+export const socialDb = new Pool({ connectionString: config.socialDatabaseUrl });
 
 export async function closeDbs(): Promise<void> {
-  await Promise.all([legacyDb.end(), authDb.end(), userDb.end()]);
+  await Promise.all([legacyDb.end(), authDb.end(), userDb.end(), socialDb.end()]);
 }

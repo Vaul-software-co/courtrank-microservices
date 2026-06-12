@@ -11,5 +11,4 @@ public interface UserRepository {
     Optional<User> findById(UUID id);
     Optional<User> findByUsername(String userName);
     List<User> findByIds(List<UUID> ids);
-    List<User> searchPublic(String query, int limit, List<UUID> excludeIds);
 }

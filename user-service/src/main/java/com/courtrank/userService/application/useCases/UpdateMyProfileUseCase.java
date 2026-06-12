@@ -3,6 +3,9 @@ package com.courtrank.userService.application.useCases;
 import com.courtrank.userService.application.dto.MyProfileResponse;
 import com.courtrank.userService.application.dto.TraceContext;
 import com.courtrank.userService.application.dto.UpdateMyProfileRequest;
+import com.courtrank.userService.application.events.UserProfileChangedEvent;
+import com.courtrank.userService.application.ports.NoOpUserEventPublisher;
+import com.courtrank.userService.application.ports.UserEventPublisher;
 import com.courtrank.userService.application.ports.audit.UserAuditEvent;
 import com.courtrank.userService.application.ports.audit.UserAuditEventType;
 import com.courtrank.userService.application.ports.audit.UserAuditLogger;
@@ -20,10 +23,16 @@ public class UpdateMyProfileUseCase {
 
     private final UserRepository userRepository;
     private final UserAuditLogger auditLogger;
+    private final UserEventPublisher eventPublisher;
 
     public UpdateMyProfileUseCase(UserRepository userRepository, UserAuditLogger auditLogger) {
+        this(userRepository, auditLogger, new NoOpUserEventPublisher());
+    }
+
+    public UpdateMyProfileUseCase(UserRepository userRepository, UserAuditLogger auditLogger, UserEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.auditLogger = auditLogger;
+        this.eventPublisher = eventPublisher;
     }
 
     public MyProfileResponse execute(UpdateMyProfileRequest request, TraceContext trace){
@@ -92,8 +101,23 @@ public class UpdateMyProfileUseCase {
                 Map.of("updatedFields", updatedFields),
                 Instant.now()
         ));
+        if (this.eventPublisher != null) {
+            this.eventPublisher.publishUserProfileUpdated(this.toEvent(user));
+        }
 
         return this.toResponse(user);
+    }
+
+    private UserProfileChangedEvent toEvent(User user) {
+        return new UserProfileChangedEvent(
+                user.getId(),
+                user.getName(),
+                user.getUserName(),
+                user.getAvatarUrl(),
+                user.isPrivateProfile(),
+                user.getStatus(),
+                Instant.now()
+        );
     }
 
     private MyProfileResponse toResponse(User user) {
