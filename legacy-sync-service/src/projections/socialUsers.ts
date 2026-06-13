@@ -84,7 +84,7 @@ export async function backfillFollowsFromLegacy(): Promise<number> {
           insert into follows (
             id, follower_id, following_id, status, created_at, accepted_at, updated_at
           )
-          values ($1, $2, $3, $4, $5, case when $4 = 'ACCEPTED' then $5 else null end, $5)
+          values ($1, $2, $3, $4, $5, case when $4::text = 'ACCEPTED' then $5 else null end, $5)
           on conflict (follower_id, following_id) do update set
             status = excluded.status,
             accepted_at = excluded.accepted_at,
