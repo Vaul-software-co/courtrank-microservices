@@ -65,6 +65,28 @@ services:
         max-size: 10m
         max-file: "5"
 
+  audit-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/audit-postgres.env
+    environment:
+      POSTGRES_DB: courtrank_audit
+      POSTGRES_USER: courtrank_audit_user
+    volumes:
+      - audit_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U courtrank_audit_user -d courtrank_audit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
   kafka:
     image: apache/kafka:3.7.1
     restart: unless-stopped
@@ -186,16 +208,23 @@ services:
     restart: unless-stopped
     ports:
       - "${API_GATEWAY_PORT:-8080}:8080"
+    environment:
+      LEGACY_BACKEND_HOST: ${LEGACY_BACKEND_HOST:?Set LEGACY_BACKEND_HOST}
+      LEGACY_BACKEND_PORT: ${LEGACY_BACKEND_PORT:-4000}
+    command:
+      - /bin/sh
+      - -c
+      - envsubst '$$LEGACY_BACKEND_HOST $$LEGACY_BACKEND_PORT' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
     volumes:
-      - ./nginx/prod-api.conf:/etc/nginx/nginx.conf:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - ./nginx/prod-api.conf:/etc/nginx/templates/nginx.conf.template:ro
     depends_on:
       auth-service:
         condition: service_healthy
       user-service:
         condition: service_healthy
       social-service:
+        condition: service_healthy
+      audit-service:
         condition: service_healthy
     logging:
       driver: json-file
@@ -454,8 +483,69 @@ services:
         max-size: 10m
         max-file: "5"
 
+  audit-service:
+    image: ${AUDIT_SERVICE_IMAGE:?Set AUDIT_SERVICE_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/audit-service.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,kafka}
+      SERVER_PORT: 8086
+      DATABASE_URL: jdbc:postgresql://audit-postgres:5432/courtrank_audit
+      DATABASE_USERNAME: courtrank_audit_user
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_SECURITY_PROTOCOL: SSL
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka-audit-service.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD:?Set KAFKA_SSL_KEY_PASSWORD}
+      KAFKA_AUDIT_EVENTS_TOPIC: audit.events
+      KAFKA_CONSUMER_GROUP_ID: audit-service
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS}
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/jwt-public.pem
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-audit-service.keystore.p12
+        target: /run/secrets/kafka-audit-service.keystore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    depends_on:
+      audit-postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
 volumes:
   auth_postgres_data:
   user_postgres_data:
   social_postgres_data:
+  audit_postgres_data:
   kafka_data:

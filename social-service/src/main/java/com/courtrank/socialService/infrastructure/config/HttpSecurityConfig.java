@@ -78,6 +78,7 @@ public class HttpSecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/internal/**").permitAll()
                         .requestMatchers("/social/**").authenticated()
+                        .requestMatchers("/user/**").authenticated()
                         .anyRequest().denyAll()
                 )
                 .addFilterBefore(internalApiKeyFilter, UsernamePasswordAuthenticationFilter.class)

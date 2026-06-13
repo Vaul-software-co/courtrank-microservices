@@ -1,9 +1,7 @@
-package com.courtrank.userService.infrastructure.config;
+package com.courtrank.auditService.infrastructure.config;
 
-import com.courtrank.userService.application.ports.security.TokenService;
-import com.courtrank.userService.application.ports.security.AuthSessionVerifier;
-import com.courtrank.userService.infrastructure.security.InternalApiKeyFilter;
-import com.courtrank.userService.infrastructure.security.JwtAuthenticationFilter;
+import com.courtrank.auditService.application.ports.security.TokenService;
+import com.courtrank.auditService.infrastructure.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,15 +24,8 @@ import java.util.List;
 @EnableWebSecurity
 public class HttpSecurityConfig {
     @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter(TokenService tokenService, AuthSessionVerifier authSessionVerifier) {
-        return new JwtAuthenticationFilter(tokenService, authSessionVerifier);
-    }
-
-    @Bean
-    public InternalApiKeyFilter internalApiKeyFilter(
-            @Value("${app.internal-api-key}") String internalApiKey
-    ) {
-        return new InternalApiKeyFilter(internalApiKey);
+    public JwtAuthenticationFilter jwtAuthenticationFilter(TokenService tokenService) {
+        return new JwtAuthenticationFilter(tokenService);
     }
 
     @Bean
@@ -43,8 +34,8 @@ public class HttpSecurityConfig {
     ) {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(this.csv(allowedOrigins));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Content-Type", "Authorization", "x-internal-api-key", "x-request-id"));
+        config.setAllowedMethods(List.of("GET", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Content-Type", "Authorization", "x-request-id"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
@@ -56,7 +47,6 @@ public class HttpSecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            InternalApiKeyFilter internalApiKeyFilter,
             JwtAuthenticationFilter jwtAuthenticationFilter,
             CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
@@ -80,26 +70,9 @@ public class HttpSecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
-                        .requestMatchers("/internal/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/users/me").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/users/me").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/users/me/privacy").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/users/me/lang").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/users/me/lang").authenticated()
-                        .requestMatchers(HttpMethod.PUT, "/users/me/avatar").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/users/me/avatar").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/users/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/user/me").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/user/me").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/user/me/privacy").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/user/me/lang").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/user/me/lang").authenticated()
-                        .requestMatchers(HttpMethod.PUT, "/user/me/avatar").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/user/me/avatar").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/user/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/audit/**").hasRole("SUPER_ADMIN")
                         .anyRequest().denyAll()
                 )
-                .addFilterBefore(internalApiKeyFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

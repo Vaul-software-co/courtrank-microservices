@@ -40,13 +40,14 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping({"/users", "/user"})
 @Validated
 public class UserController {
     private static final String REQUEST_ID_HEADER = "x-request-id";
@@ -118,7 +119,7 @@ public class UserController {
         );
     }
 
-    @PatchMapping("/me/lang")
+    @RequestMapping(value = "/me/lang", method = {RequestMethod.PATCH, RequestMethod.POST})
     public UpdateMyLangResponse updateLang(
             @AuthenticationPrincipal AuthUserPrincipal principal,
             @Valid @RequestBody UpdateLangBody body,

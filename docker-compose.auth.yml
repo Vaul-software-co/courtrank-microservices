@@ -56,6 +56,25 @@ services:
       timeout: 5s
       retries: 5
 
+  audit-postgres:
+    image: postgres:16-alpine
+    container_name: courtrank-audit-postgres
+    restart: unless-stopped
+    env_file:
+      - ./secrets/audit-postgres.env
+    environment:
+      POSTGRES_DB: courtrank_audit
+      POSTGRES_USER: courtrank_audit_user
+    ports:
+      - "5436:5432"
+    volumes:
+      - audit_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U courtrank_audit_user -d courtrank_audit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   kafka:
     image: apache/kafka:3.7.1
     container_name: courtrank-kafka
@@ -122,6 +141,8 @@ services:
       /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=social-service --operation Write --operation Describe --topic social.events;
       /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=social-service --operation Write --operation Describe --topic audit.events;
       /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=social-service --operation IdempotentWrite --cluster;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=audit-service --operation Read --operation Describe --topic audit.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=audit-service --operation Read --group audit-service;
       /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=legacy-sync-service --operation Read --operation Describe --topic auth.events;
       /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=legacy-sync-service --operation Read --operation Describe --topic user.events;
       /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=legacy-sync-service --operation Read --group courtrank-legacy-sync;"
@@ -171,6 +192,8 @@ services:
       user-service:
         condition: service_healthy
       social-service:
+        condition: service_healthy
+      audit-service:
         condition: service_healthy
 
   legacy-sync-service:
@@ -347,8 +370,52 @@ services:
       kafka-init:
         condition: service_completed_successfully
 
+  audit-service:
+    build:
+      context: ./audit-service
+    image: courtrank-audit:latest
+    container_name: courtrank-audit
+    restart: unless-stopped
+    env_file:
+      - ./secrets/audit-service.env
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local,kafka}
+      SERVER_PORT: 8086
+      DATABASE_URL: jdbc:postgresql://audit-postgres:5432/courtrank_audit
+      DATABASE_USERNAME: courtrank_audit_user
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_SECURITY_PROTOCOL: SSL
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka-audit-service.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD:?Set KAFKA_SSL_KEY_PASSWORD}
+      KAFKA_AUDIT_EVENTS_TOPIC: audit.events
+      KAFKA_CONSUMER_GROUP_ID: audit-service
+    volumes:
+      - ./secrets/jwt-public.pem:/run/secrets/jwt-public.pem:ro
+      - ./secrets/kafka.truststore.p12:/run/secrets/kafka.truststore.p12:ro
+      - ./secrets/kafka-audit-service.keystore.p12:/run/secrets/kafka-audit-service.keystore.p12:ro
+    ports:
+      - "8086:8086"
+    depends_on:
+      audit-postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+
 volumes:
   auth_postgres_data:
   user_postgres_data:
   social_postgres_data:
+  audit_postgres_data:
   kafka_data:
