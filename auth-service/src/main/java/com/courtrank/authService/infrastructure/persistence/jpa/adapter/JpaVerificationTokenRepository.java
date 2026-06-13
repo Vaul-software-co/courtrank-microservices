@@ -53,4 +53,10 @@ public class JpaVerificationTokenRepository implements VerificationTokenReposito
                 .map(VerificationTokenJpaEntity::toDomain)
                 .filter(VerificationToken::isValid);
     }
+
+    @Override
+    @Transactional
+    public int deleteConsumedBefore(Instant cutoff) {
+        return this.repository.deleteConsumedBefore(cutoff);
+    }
 }

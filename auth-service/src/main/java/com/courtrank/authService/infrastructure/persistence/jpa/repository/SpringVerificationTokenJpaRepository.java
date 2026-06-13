@@ -38,4 +38,15 @@ public interface SpringVerificationTokenJpaRepository extends JpaRepository<Veri
             @Param("type") VerificationTokenType type,
             @Param("now") Instant now
     );
+
+    @Modifying
+    @Query("""
+            delete from VerificationTokenJpaEntity token
+            where token.expiresAt < :cutoff
+               or (
+                    token.usedAt is not null
+                    and token.usedAt < :cutoff
+               )
+            """)
+    int deleteConsumedBefore(@Param("cutoff") Instant cutoff);
 }

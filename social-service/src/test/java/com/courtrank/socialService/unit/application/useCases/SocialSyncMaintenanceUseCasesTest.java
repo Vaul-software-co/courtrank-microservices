@@ -66,9 +66,26 @@ class SocialSyncMaintenanceUseCasesTest {
     void deleteAndRestoreFromUserEvents_shouldHideAndThenShowProfileAgain() {
         Fixture fx = new Fixture();
         UUID userId = UUID.randomUUID();
+        UUID followerId = UUID.randomUUID();
+        UUID followingId = UUID.randomUUID();
+        UUID pendingRequesterId = UUID.randomUUID();
         fx.users.save(user(userId, "Old", "old", false, true, Instant.parse("2026-01-01T00:00:00Z")));
+        fx.follows.save(follow(followerId, userId, FollowStatus.ACCEPTED));
+        fx.follows.save(follow(userId, followingId, FollowStatus.ACCEPTED));
+        fx.follows.save(follow(pendingRequesterId, userId, FollowStatus.PENDING));
+        SocialCounter userCounter = SocialCounter.create(userId);
+        userCounter.applyAcceptedFollowAsFollowing();
+        userCounter.applyAcceptedFollowAsFollower();
+        userCounter.applyPendingRequestAsFollowing();
+        fx.counters.save(userCounter);
+        SocialCounter followerCounter = SocialCounter.create(followerId);
+        followerCounter.applyAcceptedFollowAsFollower();
+        fx.counters.save(followerCounter);
+        SocialCounter followingCounter = SocialCounter.create(followingId);
+        followingCounter.applyAcceptedFollowAsFollowing();
+        fx.counters.save(followingCounter);
 
-        new DeleteSocialUserFromUserEventUseCase(fx.users)
+        new DeleteSocialUserFromUserEventUseCase(fx.users, fx.follows, fx.counters)
                 .execute(new DeleteSocialUserRequest(
                         userId,
                         Instant.parse("2026-01-02T00:00:00Z"),
@@ -76,6 +93,13 @@ class SocialSyncMaintenanceUseCasesTest {
                 ));
 
         assertThat(fx.users.findByUserId(userId).orElseThrow().canBeShown()).isFalse();
+        assertThat(fx.follows.findFollowersByFollowingId(userId)).isEmpty();
+        assertThat(fx.follows.findFollowingByFollowerId(userId)).isEmpty();
+        assertThat(fx.counters.findByUserId(userId).orElseThrow().getFollowersCount()).isZero();
+        assertThat(fx.counters.findByUserId(userId).orElseThrow().getFollowingCount()).isZero();
+        assertThat(fx.counters.findByUserId(userId).orElseThrow().getPendingRequestsCount()).isZero();
+        assertThat(fx.counters.findByUserId(followerId).orElseThrow().getFollowingCount()).isZero();
+        assertThat(fx.counters.findByUserId(followingId).orElseThrow().getFollowersCount()).isZero();
 
         new RestoreSocialUserFromUserEventUseCase(fx.users, fx.counters)
                 .execute(new SyncSocialUserRequest(snapshot(userId, "New", "new", true, true, Instant.parse("2026-01-03T00:00:00Z"))));
@@ -85,6 +109,8 @@ class SocialSyncMaintenanceUseCasesTest {
         assertThat(restored.getName()).isEqualTo("New");
         assertThat(restored.isPrivate()).isTrue();
         assertThat(fx.counters.findByUserId(userId)).isPresent();
+        assertThat(fx.follows.findFollowersByFollowingId(userId)).isEmpty();
+        assertThat(fx.follows.findFollowingByFollowerId(userId)).isEmpty();
     }
 
     @Test

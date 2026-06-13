@@ -75,8 +75,19 @@ services:
       KAFKA_LISTENERS: INTERNAL://:29092,CONTROLLER://:9093
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:SSL,CONTROLLER:SSL
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_TYPE: PKCS12
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD:?Set KAFKA_SSL_KEY_PASSWORD}
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_TRUSTSTORE_TYPE: PKCS12
+      KAFKA_SSL_CLIENT_AUTH: required
+      KAFKA_AUTHORIZER_CLASS_NAME: org.apache.kafka.metadata.authorizer.StandardAuthorizer
+      KAFKA_SUPER_USERS: User:CN=kafka;User:CN=kafka-admin
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "false"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -84,8 +95,32 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     volumes:
       - kafka_data:/tmp/kraft-combined-logs
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka.keystore.p12
+        target: /run/secrets/kafka.keystore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-admin.properties
+        target: /run/secrets/kafka-admin.properties
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-admin.keystore.p12
+        target: /run/secrets/kafka-admin.keystore.p12
+        read_only: true
+        bind:
+          create_host_path: false
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --list >/dev/null 2>&1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -103,10 +138,47 @@ services:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
     command: >
-      "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic auth.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
-      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic audit.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
-      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic user.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
-      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic social.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;"
+      "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --create --if-not-exists --topic auth.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --create --if-not-exists --topic audit.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --create --if-not-exists --topic user.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --create --if-not-exists --topic social.events --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=auth-service --operation Write --operation Describe --topic auth.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=auth-service --operation Write --operation Describe --topic audit.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=auth-service --operation IdempotentWrite --cluster;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=user-service --operation Read --operation Describe --topic auth.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=user-service --operation Read --group user-service;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=user-service --operation Write --operation Describe --topic user.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=user-service --operation Write --operation Describe --topic audit.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=user-service --operation IdempotentWrite --cluster;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=social-service --operation Read --operation Describe --topic user.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=social-service --operation Read --group social-service;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=social-service --operation Write --operation Describe --topic social.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=social-service --operation Write --operation Describe --topic audit.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=social-service --operation IdempotentWrite --cluster;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=legacy-sync-service --operation Read --operation Describe --topic auth.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=legacy-sync-service --operation Read --operation Describe --topic user.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=legacy-sync-service --operation Read --group courtrank-legacy-sync;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=audit-service --operation Read --operation Describe --topic audit.events;
+      /opt/kafka/bin/kafka-acls.sh --bootstrap-server kafka:29092 --command-config /run/secrets/kafka-admin.properties --add --allow-principal User:CN=audit-service --operation Read --group audit-service;"
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-admin.properties
+        target: /run/secrets/kafka-admin.properties
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-admin.keystore.p12
+        target: /run/secrets/kafka-admin.keystore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+        bind:
+          create_host_path: false
     restart: "no"
 
   api-gateway:
@@ -138,9 +210,32 @@ services:
       - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/legacy-sync-service.env
     environment:
       KAFKA_BROKERS: kafka:29092
+      KAFKA_SSL_ENABLED: "true"
+      KAFKA_SSL_CA_PATH: /run/secrets/kafka-ca.crt
+      KAFKA_SSL_CERT_PATH: /run/secrets/kafka-legacy-sync-service.crt
+      KAFKA_SSL_KEY_PATH: /run/secrets/kafka-legacy-sync-service.key
       AUTH_EVENTS_TOPIC: auth.events
       USER_EVENTS_TOPIC: user.events
       SOCIAL_DATABASE_URL: postgresql://courtrank_social_user:${SOCIAL_DATABASE_PASSWORD:?Set SOCIAL_DATABASE_PASSWORD}@social-postgres:5432/courtrank_social?schema=public
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-ca.crt
+        target: /run/secrets/kafka-ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-legacy-sync-service.crt
+        target: /run/secrets/kafka-legacy-sync-service.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-legacy-sync-service.key
+        target: /run/secrets/kafka-legacy-sync-service.key
+        read_only: true
+        bind:
+          create_host_path: false
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -174,6 +269,12 @@ services:
       JWT_PRIVATE_KEY: file:/run/secrets/jwt-private.pem
       JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_SECURITY_PROTOCOL: SSL
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka-auth-service.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD:?Set KAFKA_SSL_KEY_PASSWORD}
       USER_SERVICE_URL: http://user-service:8082/internal
       WORKER_ACCESS_SERVICE_URL: ${WORKER_ACCESS_SERVICE_URL:?Set WORKER_ACCESS_SERVICE_URL}
       FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL}
@@ -191,6 +292,18 @@ services:
       - type: bind
         source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/jwt-public.pem
         target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-auth-service.keystore.p12
+        target: /run/secrets/kafka-auth-service.keystore.p12
         read_only: true
         bind:
           create_host_path: false
@@ -229,6 +342,12 @@ services:
       JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
       AUTH_SERVICE_URL: http://auth-service:8080/internal
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_SECURITY_PROTOCOL: SSL
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka-user-service.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD:?Set KAFKA_SSL_KEY_PASSWORD}
       KAFKA_USER_EVENTS_TOPIC: user.events
       KAFKA_AUDIT_EVENTS_TOPIC: audit.events
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS}
@@ -236,6 +355,18 @@ services:
       - type: bind
         source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/jwt-public.pem
         target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-user-service.keystore.p12
+        target: /run/secrets/kafka-user-service.keystore.p12
         read_only: true
         bind:
           create_host_path: false
@@ -273,6 +404,12 @@ services:
       AUTH_SERVICE_URL: http://auth-service:8080/internal
       USER_SERVICE_URL: http://user-service:8082
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_SECURITY_PROTOCOL: SSL
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka-social-service.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD:?Set KAFKA_SSL_KEY_PASSWORD}
       KAFKA_USER_EVENTS_TOPIC: user.events
       KAFKA_SOCIAL_EVENTS_TOPIC: social.events
       KAFKA_AUDIT_EVENTS_TOPIC: audit.events
@@ -281,6 +418,18 @@ services:
       - type: bind
         source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/jwt-public.pem
         target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/kafka-social-service.keystore.p12
+        target: /run/secrets/kafka-social-service.keystore.p12
         read_only: true
         bind:
           create_host_path: false

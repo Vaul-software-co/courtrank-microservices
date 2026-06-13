@@ -142,7 +142,7 @@ public class AuthController {
         HttpContext http = this.httpContext(servletRequest);
         SignUpResponse response = this.signUpUseCase.execute(request, http);
         Authentication auth = response.authentication();
-        this.sendVerificationEmailUseCase.execute(new VerificationEmailRequest(auth.getId(), auth.getEmail(), null));
+        this.sendVerificationEmailUseCase.execute(new VerificationEmailRequest(auth.getId(), auth.getEmail(), request.lang()));
 
         if (response.auth().isPresent()) {
             return this.tokenResponse(response.auth().orElseThrow());

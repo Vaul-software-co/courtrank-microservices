@@ -56,4 +56,16 @@ public interface SpringSessionJpaRepository extends JpaRepository<SessionJpaEnti
             @Param("userId") UUID userId,
             @Param("now") Instant now
     );
+
+    @Modifying
+    @Query("""
+            delete from SessionJpaEntity session
+            where session.expiresAt < :cutoff
+               or (
+                    session.status <> com.courtrank.authService.domain.enums.SessionStatus.ACTIVE
+                    and session.revokedAt is not null
+                    and session.revokedAt < :cutoff
+               )
+            """)
+    int deleteInactiveBefore(@Param("cutoff") Instant cutoff);
 }

@@ -42,6 +42,7 @@ import com.courtrank.authService.infrastructure.controllers.HttpExceptionHandler
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -57,6 +58,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -164,7 +166,8 @@ public class AuthControllerIntegrationTest {
                                 "password", "StrongPass1!",
                                 "terms", true,
                                 "termsVersion", "v1",
-                                "commercial", false
+                                "commercial", false,
+                                "lang", "es"
                         ))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().json("{\"error\":\"Invalid API key\"}"));
@@ -190,13 +193,16 @@ public class AuthControllerIntegrationTest {
                                 "password", "StrongPass1!",
                                 "terms", true,
                                 "termsVersion", "v1",
-                                "commercial", false
+                                "commercial", false,
+                                "lang", "es"
                         ))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.token").value(ACCESS_TOKEN))
                 .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN));
 
-        verify(this.sendVerificationEmailUseCase).execute(any(VerificationEmailRequest.class));
+        ArgumentCaptor<VerificationEmailRequest> emailCaptor = ArgumentCaptor.forClass(VerificationEmailRequest.class);
+        verify(this.sendVerificationEmailUseCase).execute(emailCaptor.capture());
+        assertEquals("es", emailCaptor.getValue().lang());
     }
 
     @Test

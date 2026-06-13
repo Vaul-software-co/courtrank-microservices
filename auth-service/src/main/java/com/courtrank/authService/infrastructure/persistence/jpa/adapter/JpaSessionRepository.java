@@ -91,6 +91,12 @@ public class JpaSessionRepository implements SessionRepository {
         this.repository.revokeActiveByUserId(userId, Instant.now());
     }
 
+    @Override
+    @Transactional
+    public int deleteInactiveBefore(Instant cutoff) {
+        return this.repository.deleteInactiveBefore(cutoff);
+    }
+
     private boolean isRecentRotation(Instant revokedAt) {
         return revokedAt != null && revokedAt.isAfter(Instant.now().minus(RECENT_ROTATION_WINDOW));
     }

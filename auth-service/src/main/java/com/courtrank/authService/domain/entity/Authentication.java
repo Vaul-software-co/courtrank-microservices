@@ -188,11 +188,12 @@ public class Authentication {
         this.updatedAt = now;
     }
 
-    public void restoreUser(String newPasswordHash){
+    public void restoreUser(String newPasswordHash, UserRole role){
         if(!isDeleted()) return;
 
         Instant now = Instant.now();
         this.passwordHash = newPasswordHash;
+        this.role = role;
         this.isActive = true;
         this.isEmailVerified = false;
         this.deletedAt = null;

@@ -98,7 +98,8 @@ public class SignUpUseCaseTest {
                 PASSWORD,
                 terms,
                 TERMS_VERSION,
-                commercial
+                commercial,
+                "es"
         );
     }
 
@@ -232,7 +233,7 @@ public class SignUpUseCaseTest {
     @Test
     void execute_shouldRestoreDeletedUserAndPublishRestoredEvent() {
         SignUpRequest request = this.createRequest(true, false);
-        Authentication existingAuth = Authentication.create(EMAIL, "old-hash", UserRole.MEMBER);
+        Authentication existingAuth = Authentication.create(EMAIL, "old-hash", UserRole.ADMIN);
         existingAuth.deleteUser();
 
         when(this.passwordHasher.hashPassword(PASSWORD))
@@ -251,6 +252,7 @@ public class SignUpUseCaseTest {
         assertFalse(existingAuth.isDeleted());
         assertTrue(existingAuth.isActive());
         assertFalse(existingAuth.isEmailVerified());
+        assertEquals(UserRole.MEMBER, existingAuth.getRole());
         assertEquals(PASSWORD_HASH, existingAuth.getPasswordHash());
         assertEquals(TERMS_VERSION, existingAuth.getTermsVersionAccepted());
         assertFalse(existingAuth.isDataAccepted());

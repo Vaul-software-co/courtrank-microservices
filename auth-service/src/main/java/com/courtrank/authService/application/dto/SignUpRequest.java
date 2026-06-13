@@ -31,7 +31,9 @@ public record SignUpRequest(
         String termsVersion,
 
         @JsonAlias({"isCommercial", "acceptedDataCommercialization"})
-        boolean commercial
+        boolean commercial,
+
+        String lang
 ) {
     public boolean isTerms() {
         return this.terms;

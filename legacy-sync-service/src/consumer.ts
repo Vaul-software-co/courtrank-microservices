@@ -1,4 +1,5 @@
 import { Kafka } from "kafkajs";
+import { readFileSync } from "node:fs";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import {
@@ -24,6 +25,14 @@ export async function startConsumer(): Promise<void> {
   const kafka = new Kafka({
     clientId: config.kafkaClientId,
     brokers: config.kafkaBrokers,
+    ssl: config.kafkaSslEnabled
+      ? {
+          ca: config.kafkaSslCaPath ? [readFileSync(config.kafkaSslCaPath, "utf8")] : undefined,
+          cert: config.kafkaSslCertPath ? readFileSync(config.kafkaSslCertPath, "utf8") : undefined,
+          key: config.kafkaSslKeyPath ? readFileSync(config.kafkaSslKeyPath, "utf8") : undefined,
+          rejectUnauthorized: config.kafkaSslRejectUnauthorized,
+        }
+      : undefined,
   });
   const consumer = kafka.consumer({ groupId: config.kafkaGroupId });
 

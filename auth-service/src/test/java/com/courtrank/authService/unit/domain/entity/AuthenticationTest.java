@@ -97,11 +97,12 @@ public class AuthenticationTest {
         String newPasswordHash = "newHash";
 
         auth.deleteUser();
-        auth.restoreUser(newPasswordHash);
+        auth.restoreUser(newPasswordHash, UserRole.MEMBER);
         assertFalse(auth.isDeleted());
         assertNull(auth.getDeletedAt());
         assertTrue(auth.isActive());
         assertEquals(newPasswordHash, auth.getPasswordHash());
+        assertEquals(UserRole.MEMBER, auth.getRole());
     }
 
     @Test
@@ -110,7 +111,7 @@ public class AuthenticationTest {
 
         String newPasswordHash = "newHash";
 
-        auth.restoreUser(newPasswordHash);
+        auth.restoreUser(newPasswordHash, UserRole.MEMBER);
         assertEquals(EMAIL, auth.getEmail());
         assertNotEquals(newPasswordHash, auth.getPasswordHash());
     }

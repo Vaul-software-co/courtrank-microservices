@@ -83,7 +83,7 @@ public class SignUpUseCase {
                 throw new ConflictException("Email already registered");
             }
 
-            auth.restoreUser(passwordHash);
+            auth.restoreUser(passwordHash, http.type());
             eventType = AuditEventType.AUTH_SIGN_UP_RESTORED_USER;
             restored = true;
         } else {

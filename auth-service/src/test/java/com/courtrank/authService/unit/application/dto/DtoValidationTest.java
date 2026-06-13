@@ -63,7 +63,8 @@ public class DtoValidationTest {
                 PASSWORD,
                 true,
                 "v1",
-                false
+                false,
+                "es"
         );
 
         this.assertValid(request);
@@ -78,7 +79,8 @@ public class DtoValidationTest {
                 PASSWORD,
                 false,
                 "v1",
-                false
+                false,
+                "es"
         );
 
         this.assertInvalid(request);
@@ -93,7 +95,8 @@ public class DtoValidationTest {
                 PASSWORD,
                 true,
                 "v1",
-                false
+                false,
+                "es"
         );
 
         this.assertInvalid(request);
@@ -108,7 +111,8 @@ public class DtoValidationTest {
                 "",
                 true,
                 "",
-                false
+                false,
+                "es"
         );
 
         this.assertInvalid(request);
