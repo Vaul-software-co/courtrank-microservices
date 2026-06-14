@@ -52,7 +52,12 @@ public class JpaUserRepository implements UserRepository {
     public List<User> searchForAdmin(String query, int limit, int offset) {
         String normalizedQuery = this.normalizeQuery(query);
         int page = Math.max(0, offset / limit);
-        return this.repository.searchForAdmin(normalizedQuery, PageRequest.of(page, limit))
+        var pageable = PageRequest.of(page, limit);
+        var users = normalizedQuery == null
+                ? this.repository.findAllForAdmin(pageable)
+                : this.repository.searchForAdmin(normalizedQuery, pageable);
+
+        return users
                 .stream()
                 .map(UserJpaEntity::toDomain)
                 .toList();
@@ -60,7 +65,8 @@ public class JpaUserRepository implements UserRepository {
 
     @Override
     public long countForAdmin(String query) {
-        return this.repository.countForAdmin(this.normalizeQuery(query));
+        String normalizedQuery = this.normalizeQuery(query);
+        return normalizedQuery == null ? this.repository.count() : this.repository.countForAdmin(normalizedQuery);
     }
 
     private String normalizeQuery(String query) {

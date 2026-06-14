@@ -21,8 +21,14 @@ public interface SpringUserJpaRepository extends JpaRepository<UserJpaEntity, UU
     @Query("""
             select user
             from UserJpaEntity user
-            where :query is null
-               or lower(user.name) like concat('%', :query, '%')
+            order by user.createdAt desc, user.id desc
+            """)
+    List<UserJpaEntity> findAllForAdmin(Pageable pageable);
+
+    @Query("""
+            select user
+            from UserJpaEntity user
+            where lower(user.name) like concat('%', :query, '%')
                or lower(user.userName) like concat('%', :query, '%')
                or lower(user.email) like concat('%', :query, '%')
                or cast(user.id as string) like concat('%', :query, '%')
@@ -33,8 +39,7 @@ public interface SpringUserJpaRepository extends JpaRepository<UserJpaEntity, UU
     @Query("""
             select count(user)
             from UserJpaEntity user
-            where :query is null
-               or lower(user.name) like concat('%', :query, '%')
+            where lower(user.name) like concat('%', :query, '%')
                or lower(user.userName) like concat('%', :query, '%')
                or lower(user.email) like concat('%', :query, '%')
                or cast(user.id as string) like concat('%', :query, '%')
