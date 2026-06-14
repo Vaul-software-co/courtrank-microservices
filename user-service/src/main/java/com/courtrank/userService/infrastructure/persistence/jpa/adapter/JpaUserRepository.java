@@ -4,6 +4,7 @@ import com.courtrank.userService.domain.entity.User;
 import com.courtrank.userService.domain.repository.UserRepository;
 import com.courtrank.userService.infrastructure.persistence.jpa.entity.UserJpaEntity;
 import com.courtrank.userService.infrastructure.persistence.jpa.repository.SpringUserJpaRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -45,5 +46,27 @@ public class JpaUserRepository implements UserRepository {
                 .stream()
                 .map(UserJpaEntity::toDomain)
                 .toList();
+    }
+
+    @Override
+    public List<User> searchForAdmin(String query, int limit, int offset) {
+        String normalizedQuery = this.normalizeQuery(query);
+        int page = Math.max(0, offset / limit);
+        return this.repository.searchForAdmin(normalizedQuery, PageRequest.of(page, limit))
+                .stream()
+                .map(UserJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countForAdmin(String query) {
+        return this.repository.countForAdmin(this.normalizeQuery(query));
+    }
+
+    private String normalizeQuery(String query) {
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+        return query.trim().toLowerCase();
     }
 }

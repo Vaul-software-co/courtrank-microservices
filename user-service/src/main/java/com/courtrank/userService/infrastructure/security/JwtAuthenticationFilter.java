@@ -8,6 +8,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -47,15 +48,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             UUID userId = this.tokenService.getTokenId(token);
             UUID sessionId = this.tokenService.getSessionId(token);
+            String role = this.tokenService.getRole(token);
             if (!this.authSessionVerifier.isActive(sessionId)) {
                 SecurityContextHolder.clearContext();
                 return;
             }
 
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    new AuthUserPrincipal(userId),
+                    new AuthUserPrincipal(userId, role),
                     null,
-                    List.of()
+                    List.of(new SimpleGrantedAuthority("ROLE_" + role))
             );
 
             SecurityContextHolder.getContext().setAuthentication(authentication);

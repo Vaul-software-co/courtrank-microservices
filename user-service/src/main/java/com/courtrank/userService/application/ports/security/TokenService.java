@@ -6,4 +6,5 @@ public interface TokenService {
     boolean verifyAccess(String token);
     UUID getTokenId(String token);
     UUID getSessionId(String token);
+    String getRole(String token);
 }

@@ -1,5 +1,7 @@
 package com.courtrank.userService.integration.infrastructure.controllers;
 
+import com.courtrank.userService.application.dto.AdminUserSummaryResponse;
+import com.courtrank.userService.application.dto.ListAdminUsersResponse;
 import com.courtrank.userService.application.dto.MyProfileResponse;
 import com.courtrank.userService.application.dto.PublicProfileResponse;
 import com.courtrank.userService.application.dto.RemoveMyAvatarResponse;
@@ -10,6 +12,7 @@ import com.courtrank.userService.application.ports.security.AuthSessionVerifier;
 import com.courtrank.userService.application.ports.security.TokenService;
 import com.courtrank.userService.application.useCases.GetMyProfileUseCase;
 import com.courtrank.userService.application.useCases.GetUserPublicProfileUseCase;
+import com.courtrank.userService.application.useCases.ListAdminUsersUseCase;
 import com.courtrank.userService.application.useCases.RemoveMyAvatarUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyAvatarUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyLangUseCase;
@@ -33,6 +36,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -79,6 +83,9 @@ public class UserControllerIntegrationTest {
     GetUserPublicProfileUseCase getUserPublicProfileUseCase;
 
     @MockitoBean
+    ListAdminUsersUseCase listAdminUsersUseCase;
+
+    @MockitoBean
     UpdateMyAvatarUseCase updateMyAvatarUseCase;
 
     @MockitoBean
@@ -114,6 +121,34 @@ public class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.id").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.email").value("sebas@test.com"))
                 .andExpect(jsonPath("$.isEmailVerified").value(true));
+    }
+
+    @Test
+    void legacyMe_shouldReturnLegacyProfileShape() throws Exception {
+        this.stubAuthenticatedSession();
+        when(this.getMyProfileUseCase.execute(any(), any()))
+                .thenReturn(new MyProfileResponse(
+                        USER_ID,
+                        "Sebastian",
+                        "sebas",
+                        "sebas@test.com",
+                        true,
+                        "+573001112233",
+                        UserGender.MALE,
+                        "avatar-key",
+                        true,
+                        UserProfileStatus.VISIBLE,
+                        "es",
+                        Instant.parse("2026-01-01T00:00:00Z")
+                ));
+
+        this.mvc.perform(get("/user/me").header(HttpHeaders.AUTHORIZATION, this.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(USER_ID.toString()))
+                .andExpect(jsonPath("$.phone").value("+573001112233"))
+                .andExpect(jsonPath("$.isPrivate").value(true))
+                .andExpect(jsonPath("$.needsTermsAcceptance").value(false))
+                .andExpect(jsonPath("$.usernameChangeInfo.changesLeft").value(2));
     }
 
     @Test
@@ -160,6 +195,20 @@ public class UserControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Validation failed"))
                 .andExpect(jsonPath("$.fields.privateProfile").exists());
+    }
+
+    @Test
+    void legacyUpdatePrivacy_shouldAcceptLegacyFlagAndReturnLegacyShape() throws Exception {
+        this.stubAuthenticatedSession();
+        when(this.updateMyPrivacyUseCase.execute(any(), any()))
+                .thenReturn(new UpdateMyPrivacyResponse(true));
+
+        this.mvc.perform(patch("/user/me/privacy")
+                        .header(HttpHeaders.AUTHORIZATION, this.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(this.json(Map.of("isPrivate", true))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isPrivate").value(true));
     }
 
     @Test
@@ -222,10 +271,56 @@ public class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.username").value("player"));
     }
 
+    @Test
+    void adminUsers_shouldReturnUsersWhenPrincipalIsSuperAdmin() throws Exception {
+        this.stubAuthenticatedSession();
+        when(this.listAdminUsersUseCase.execute(any()))
+                .thenReturn(new ListAdminUsersResponse(
+                        List.of(new AdminUserSummaryResponse(
+                                USER_ID,
+                                "Sebastian",
+                                "sebas",
+                                "sebas@test.com",
+                                true,
+                                "+573001112233",
+                                "avatar",
+                                false,
+                                UserProfileStatus.VISIBLE,
+                                Instant.parse("2026-01-01T00:00:00Z"),
+                                Instant.parse("2026-01-02T00:00:00Z")
+                        )),
+                        50,
+                        0,
+                        1
+                ));
+
+        this.mvc.perform(get("/users/admin")
+                        .header(HttpHeaders.AUTHORIZATION, this.bearer())
+                        .param("q", "sebas"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.users[0].id").value(USER_ID.toString()))
+                .andExpect(jsonPath("$.users[0].email").value("sebas@test.com"))
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void adminUsers_shouldReturnForbiddenWhenPrincipalIsNotSuperAdmin() throws Exception {
+        this.stubAuthenticatedSession("MEMBER");
+
+        this.mvc.perform(get("/users/admin").header(HttpHeaders.AUTHORIZATION, this.bearer()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Access denied"));
+    }
+
     private void stubAuthenticatedSession() {
+        this.stubAuthenticatedSession("SUPER_ADMIN");
+    }
+
+    private void stubAuthenticatedSession(String role) {
         when(this.tokenService.verifyAccess(ACCESS_TOKEN)).thenReturn(true);
         when(this.tokenService.getTokenId(ACCESS_TOKEN)).thenReturn(USER_ID);
         when(this.tokenService.getSessionId(ACCESS_TOKEN)).thenReturn(SESSION_ID);
+        when(this.tokenService.getRole(ACCESS_TOKEN)).thenReturn(role);
         when(this.authSessionVerifier.isActive(SESSION_ID)).thenReturn(true);
     }
 

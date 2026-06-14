@@ -44,7 +44,15 @@ public class HttpSecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(this.csv(allowedOrigins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Content-Type", "Authorization", "x-internal-api-key", "x-request-id"));
+        config.setAllowedHeaders(List.of(
+                "Content-Type",
+                "Authorization",
+                "x-api-key",
+                "x-sub-token",
+                "x-club-id",
+                "x-internal-api-key",
+                "x-request-id"
+        ));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
@@ -81,6 +89,7 @@ public class HttpSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/internal/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/users/admin").hasRole("SUPER_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/users/me").authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/users/me").authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/users/me/privacy").authenticated()

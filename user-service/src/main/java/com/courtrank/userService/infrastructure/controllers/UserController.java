@@ -2,6 +2,8 @@ package com.courtrank.userService.infrastructure.controllers;
 
 import com.courtrank.userService.application.dto.GetProfileRequest;
 import com.courtrank.userService.application.dto.GetPublicProfileRequest;
+import com.courtrank.userService.application.dto.ListAdminUsersRequest;
+import com.courtrank.userService.application.dto.ListAdminUsersResponse;
 import com.courtrank.userService.application.dto.MyProfileResponse;
 import com.courtrank.userService.application.dto.PublicProfileResponse;
 import com.courtrank.userService.application.dto.RemoveMyAvatarRequest;
@@ -16,6 +18,7 @@ import com.courtrank.userService.application.dto.UpdateMyPrivacyResponse;
 import com.courtrank.userService.application.dto.UpdateMyProfileRequest;
 import com.courtrank.userService.application.useCases.GetMyProfileUseCase;
 import com.courtrank.userService.application.useCases.GetUserPublicProfileUseCase;
+import com.courtrank.userService.application.useCases.ListAdminUsersUseCase;
 import com.courtrank.userService.application.useCases.RemoveMyAvatarUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyAvatarUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyLangUseCase;
@@ -23,6 +26,7 @@ import com.courtrank.userService.application.useCases.UpdateMyPrivacyUseCase;
 import com.courtrank.userService.application.useCases.UpdateMyProfileUseCase;
 import com.courtrank.userService.domain.enums.UserGender;
 import com.courtrank.userService.infrastructure.security.AuthUserPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -44,6 +48,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @RestController
@@ -57,6 +62,7 @@ public class UserController {
     private final UpdateMyPrivacyUseCase updateMyPrivacyUseCase;
     private final UpdateMyLangUseCase updateMyLangUseCase;
     private final GetUserPublicProfileUseCase getUserPublicProfileUseCase;
+    private final ListAdminUsersUseCase listAdminUsersUseCase;
     private final UpdateMyAvatarUseCase updateMyAvatarUseCase;
     private final RemoveMyAvatarUseCase removeMyAvatarUseCase;
 
@@ -66,6 +72,7 @@ public class UserController {
             UpdateMyPrivacyUseCase updateMyPrivacyUseCase,
             UpdateMyLangUseCase updateMyLangUseCase,
             GetUserPublicProfileUseCase getUserPublicProfileUseCase,
+            ListAdminUsersUseCase listAdminUsersUseCase,
             UpdateMyAvatarUseCase updateMyAvatarUseCase,
             RemoveMyAvatarUseCase removeMyAvatarUseCase
     ) {
@@ -74,49 +81,56 @@ public class UserController {
         this.updateMyPrivacyUseCase = updateMyPrivacyUseCase;
         this.updateMyLangUseCase = updateMyLangUseCase;
         this.getUserPublicProfileUseCase = getUserPublicProfileUseCase;
+        this.listAdminUsersUseCase = listAdminUsersUseCase;
         this.updateMyAvatarUseCase = updateMyAvatarUseCase;
         this.removeMyAvatarUseCase = removeMyAvatarUseCase;
     }
 
     @GetMapping("/me")
-    public MyProfileResponse me(
+    public Object me(
             @AuthenticationPrincipal AuthUserPrincipal principal,
-            @RequestHeader(name = REQUEST_ID_HEADER, required = false) String requestId
+            @RequestHeader(name = REQUEST_ID_HEADER, required = false) String requestId,
+            HttpServletRequest servletRequest
     ) {
-        return this.getMyProfileUseCase.execute(
+        MyProfileResponse response = this.getMyProfileUseCase.execute(
                 new GetProfileRequest(principal.userId()),
                 TraceContext.fromRequestId(requestId)
         );
+        return this.isLegacyUserPath(servletRequest) ? LegacyMyProfileResponse.from(response) : response;
     }
 
     @PatchMapping("/me")
-    public MyProfileResponse updateMe(
+    public Object updateMe(
             @AuthenticationPrincipal AuthUserPrincipal principal,
             @Valid @RequestBody UpdateProfileBody body,
-            @RequestHeader(name = REQUEST_ID_HEADER, required = false) String requestId
+            @RequestHeader(name = REQUEST_ID_HEADER, required = false) String requestId,
+            HttpServletRequest servletRequest
     ) {
-        return this.updateMyProfileUseCase.execute(
+        MyProfileResponse response = this.updateMyProfileUseCase.execute(
                 new UpdateMyProfileRequest(
                         principal.userId(),
                         body.name(),
                         body.username(),
-                        body.phoneNumber(),
+                        body.resolvedPhoneNumber(),
                         body.gender()
                 ),
                 TraceContext.fromRequestId(requestId)
         );
+        return this.isLegacyUserPath(servletRequest) ? LegacyMyProfileResponse.from(response) : response;
     }
 
     @PatchMapping("/me/privacy")
-    public UpdateMyPrivacyResponse updatePrivacy(
+    public Object updatePrivacy(
             @AuthenticationPrincipal AuthUserPrincipal principal,
             @Valid @RequestBody UpdatePrivacyBody body,
-            @RequestHeader(name = REQUEST_ID_HEADER, required = false) String requestId
+            @RequestHeader(name = REQUEST_ID_HEADER, required = false) String requestId,
+            HttpServletRequest servletRequest
     ) {
-        return this.updateMyPrivacyUseCase.execute(
-                new UpdateMyPrivacyRequest(principal.userId(), body.privateProfile()),
+        UpdateMyPrivacyResponse response = this.updateMyPrivacyUseCase.execute(
+                new UpdateMyPrivacyRequest(principal.userId(), body.resolvedPrivateProfile()),
                 TraceContext.fromRequestId(requestId)
         );
+        return this.isLegacyUserPath(servletRequest) ? new LegacyPrivacyResponse(response.privateProfile()) : response;
     }
 
     @RequestMapping(value = "/me/lang", method = {RequestMethod.PATCH, RequestMethod.POST})
@@ -154,6 +168,15 @@ public class UserController {
         );
     }
 
+    @GetMapping("/admin")
+    public ListAdminUsersResponse adminUsers(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int limit,
+            @RequestParam(defaultValue = "0") @Min(0) int offset
+    ) {
+        return this.listAdminUsersUseCase.execute(new ListAdminUsersRequest(q, limit, offset));
+    }
+
     @GetMapping("/{id}")
     public PublicProfileResponse publicProfile(
             @PathVariable UUID id,
@@ -176,14 +199,30 @@ public class UserController {
             @Size(min = 5, max = 20)
             String phoneNumber,
 
+            @Size(min = 5, max = 20)
+            String phone,
+
             UserGender gender
     ) {
+        String resolvedPhoneNumber() {
+            return this.phoneNumber != null ? this.phoneNumber : this.phone;
+        }
     }
 
     public record UpdatePrivacyBody(
             @NotNull
-            Boolean privateProfile
+            Boolean privateProfile,
+            Boolean isPrivate
     ) {
+        public UpdatePrivacyBody {
+            if (privateProfile == null) {
+                privateProfile = isPrivate;
+            }
+        }
+
+        Boolean resolvedPrivateProfile() {
+            return this.privateProfile;
+        }
     }
 
     public record UpdateLangBody(
@@ -196,6 +235,60 @@ public class UserController {
     public record UpdateAvatarBody(
             @NotBlank
             String avatarKey
+    ) {
+    }
+
+    private boolean isLegacyUserPath(HttpServletRequest request) {
+        return request.getRequestURI().startsWith("/user/");
+    }
+
+    public record LegacyMyProfileResponse(
+            UUID id,
+            String name,
+            String username,
+            String email,
+            String phone,
+            UserGender gender,
+            String avatarUrl,
+            boolean isEmailVerified,
+            boolean isPrivate,
+            String status,
+            String lang,
+            Instant createdAt,
+            Instant acceptedDataCommercializationAt,
+            boolean needsTermsAcceptance,
+            UsernameChangeInfo usernameChangeInfo
+    ) {
+        static LegacyMyProfileResponse from(MyProfileResponse response) {
+            return new LegacyMyProfileResponse(
+                    response.id(),
+                    response.name(),
+                    response.username(),
+                    response.email(),
+                    response.phoneNumber(),
+                    response.gender(),
+                    response.avatarUrl(),
+                    response.isEmailVerified(),
+                    response.privateProfile(),
+                    response.status().name(),
+                    response.lang(),
+                    response.createdAt(),
+                    null,
+                    false,
+                    new UsernameChangeInfo(0, 2, null)
+            );
+        }
+    }
+
+    public record UsernameChangeInfo(
+            int changesUsed,
+            int changesLeft,
+            String nextAvailableAt
+    ) {
+    }
+
+    public record LegacyPrivacyResponse(
+            Boolean isPrivate
     ) {
     }
 }

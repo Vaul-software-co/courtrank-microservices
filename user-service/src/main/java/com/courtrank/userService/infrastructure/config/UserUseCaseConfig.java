@@ -11,6 +11,7 @@ import com.courtrank.userService.application.useCases.GetInternalUserSummaryUseC
 import com.courtrank.userService.application.useCases.GetInternalUsersByIdsUseCase;
 import com.courtrank.userService.application.useCases.GetMyProfileUseCase;
 import com.courtrank.userService.application.useCases.GetUserPublicProfileUseCase;
+import com.courtrank.userService.application.useCases.ListAdminUsersUseCase;
 import com.courtrank.userService.application.useCases.MarkUserEmailVerifiedFromAuthEventUseCase;
 import com.courtrank.userService.application.useCases.RemoveMyAvatarUseCase;
 import com.courtrank.userService.application.useCases.RestoreUserFromAuthEventUseCase;
@@ -133,6 +134,11 @@ public class UserUseCaseConfig {
     @Bean
     public GetInternalUsersByIdsUseCase getInternalUsersByIdsUseCase(UserRepository userRepository) {
         return new GetInternalUsersByIdsUseCase(userRepository);
+    }
+
+    @Bean
+    public ListAdminUsersUseCase listAdminUsersUseCase(UserRepository userRepository) {
+        return new ListAdminUsersUseCase(userRepository);
     }
 
     @Bean

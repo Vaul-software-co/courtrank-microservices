@@ -76,6 +76,16 @@ public class RsaJwtTokenService implements TokenService {
         }
     }
 
+    @Override
+    public String getRole(String token) {
+        Map<String, Object> payload = this.parsePayload(token);
+        Object role = payload.get("type");
+        if (!(role instanceof String value) || value.isBlank()) {
+            throw new InvalidCredentialsException();
+        }
+        return value;
+    }
+
     private boolean isAccessToken(Map<String, Object> payload) {
         Object tokenType = payload.get("tokenType");
         if (tokenType instanceof String value) {

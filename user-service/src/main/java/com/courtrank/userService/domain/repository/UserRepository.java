@@ -11,4 +11,6 @@ public interface UserRepository {
     Optional<User> findById(UUID id);
     Optional<User> findByUsername(String userName);
     List<User> findByIds(List<UUID> ids);
+    List<User> searchForAdmin(String query, int limit, int offset);
+    long countForAdmin(String query);
 }

@@ -41,6 +41,8 @@ public class JwtAuthenticationFilterTest {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         AuthUserPrincipal principal = assertInstanceOf(AuthUserPrincipal.class, authentication.getPrincipal());
         assertEquals(userId, principal.userId());
+        assertEquals("SUPER_ADMIN", principal.role());
+        assertEquals("ROLE_SUPER_ADMIN", authentication.getAuthorities().iterator().next().getAuthority());
     }
 
     @Test
@@ -79,6 +81,11 @@ public class JwtAuthenticationFilterTest {
         @Override
         public UUID getSessionId(String token) {
             return sessionId;
+        }
+
+        @Override
+        public String getRole(String token) {
+            return "SUPER_ADMIN";
         }
     }
 }
