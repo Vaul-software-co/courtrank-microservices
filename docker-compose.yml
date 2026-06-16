@@ -1,0 +1,292 @@
+# Gateway docker-compose — sin postgres ni kafka local.
+# Postgres y Kafka corren en VM Data (172.26.9.32).
+
+services:
+  auth-service:
+    image: ${AUTH_SERVICE_IMAGE:?Set AUTH_SERVICE_IMAGE}
+    container_name: courtrank-auth
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    env_file:
+      - ${COURTRANK_SECRETS_DIR:?Set COURTRANK_SECRETS_DIR}/auth-service.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,kafka}
+      SERVER_PORT: 8080
+      DATABASE_URL: jdbc:postgresql://172.26.9.32:5432/courtrank_auth
+      DATABASE_USERNAME: courtrank_auth_user
+      JWT_PRIVATE_KEY: file:/run/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      KAFKA_BOOTSTRAP_SERVERS: 172.26.9.32:29092
+      KAFKA_SECURITY_PROTOCOL: SSL
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD:?Set KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka-auth-service.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD:?Set KAFKA_SSL_KEY_PASSWORD}
+      USER_SERVICE_URL: http://user-service:8082/internal
+      WORKER_ACCESS_SERVICE_URL: ${WORKER_ACCESS_SERVICE_URL:?Set WORKER_ACCESS_SERVICE_URL}
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS}
+      COOKIE_SECURE: "true"
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-None}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:?Set COOKIE_DOMAIN}
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/jwt-private.pem
+        target: /run/secrets/jwt-private.pem
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/jwt-public.pem
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka-auth-service.keystore.p12
+        target: /run/secrets/kafka-auth-service.keystore.p12
+        read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  user-service:
+    image: ${USER_SERVICE_IMAGE:?Set USER_SERVICE_IMAGE}
+    container_name: courtrank-user
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    env_file:
+      - ${COURTRANK_SECRETS_DIR}/user-service.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,kafka}
+      SERVER_PORT: 8082
+      DATABASE_URL: jdbc:postgresql://172.26.9.32:5432/courtrank_users
+      DATABASE_USERNAME: courtrank_user_user
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      AUTH_SERVICE_URL: http://auth-service:8080/internal
+      KAFKA_BOOTSTRAP_SERVERS: 172.26.9.32:29092
+      KAFKA_SECURITY_PROTOCOL: SSL
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka-user-service.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD}
+      KAFKA_USER_EVENTS_TOPIC: user.events
+      KAFKA_AUDIT_EVENTS_TOPIC: audit.events
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/jwt-public.pem
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka-user-service.keystore.p12
+        target: /run/secrets/kafka-user-service.keystore.p12
+        read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    depends_on:
+      auth-service:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  social-service:
+    image: ${SOCIAL_SERVICE_IMAGE:?Set SOCIAL_SERVICE_IMAGE}
+    container_name: courtrank-social
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    env_file:
+      - ${COURTRANK_SECRETS_DIR}/social-service.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,kafka}
+      SERVER_PORT: 8084
+      DATABASE_URL: jdbc:postgresql://172.26.9.32:5432/courtrank_social
+      DATABASE_USERNAME: courtrank_social_user
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      AUTH_SERVICE_URL: http://auth-service:8080/internal
+      USER_SERVICE_URL: http://user-service:8082
+      KAFKA_BOOTSTRAP_SERVERS: 172.26.9.32:29092
+      KAFKA_SECURITY_PROTOCOL: SSL
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka-social-service.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD}
+      KAFKA_USER_EVENTS_TOPIC: user.events
+      KAFKA_SOCIAL_EVENTS_TOPIC: social.events
+      KAFKA_AUDIT_EVENTS_TOPIC: audit.events
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/jwt-public.pem
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka-social-service.keystore.p12
+        target: /run/secrets/kafka-social-service.keystore.p12
+        read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  audit-service:
+    image: ${AUDIT_SERVICE_IMAGE:?Set AUDIT_SERVICE_IMAGE}
+    container_name: courtrank-audit
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    env_file:
+      - ${COURTRANK_SECRETS_DIR}/audit-service.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,kafka}
+      SERVER_PORT: 8086
+      DATABASE_URL: jdbc:postgresql://172.26.9.32:5432/courtrank_audit
+      DATABASE_USERNAME: courtrank_audit_user
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      KAFKA_BOOTSTRAP_SERVERS: 172.26.9.32:29092
+      KAFKA_SECURITY_PROTOCOL: SSL
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /run/secrets/kafka.truststore.p12
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEYSTORE_LOCATION: /run/secrets/kafka-audit-service.keystore.p12
+      KAFKA_SSL_KEYSTORE_PASSWORD: ${KAFKA_SSL_STORE_PASSWORD}
+      KAFKA_SSL_KEY_PASSWORD: ${KAFKA_SSL_KEY_PASSWORD}
+      KAFKA_AUDIT_EVENTS_TOPIC: audit.events
+      KAFKA_CONSUMER_GROUP_ID: audit-service
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/jwt-public.pem
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka.truststore.p12
+        target: /run/secrets/kafka.truststore.p12
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka-audit-service.keystore.p12
+        target: /run/secrets/kafka-audit-service.keystore.p12
+        read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  legacy-sync-service:
+    image: ${LEGACY_SYNC_SERVICE_IMAGE:?Set LEGACY_SYNC_SERVICE_IMAGE}
+    container_name: courtrank-legacy-sync
+    restart: unless-stopped
+    env_file:
+      - ${COURTRANK_SECRETS_DIR}/legacy-sync-service.env
+    environment:
+      KAFKA_BROKERS: 172.26.9.32:29092
+      KAFKA_SSL_ENABLED: "true"
+      KAFKA_SSL_CA_PATH: /run/secrets/kafka-ca.crt
+      KAFKA_SSL_CERT_PATH: /run/secrets/kafka-legacy-sync-service.crt
+      KAFKA_SSL_KEY_PATH: /run/secrets/kafka-legacy-sync-service.key
+      AUTH_EVENTS_TOPIC: auth.events
+      USER_EVENTS_TOPIC: user.events
+    volumes:
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka-ca.crt
+        target: /run/secrets/kafka-ca.crt
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka-legacy-sync-service.crt
+        target: /run/secrets/kafka-legacy-sync-service.crt
+        read_only: true
+      - type: bind
+        source: ${COURTRANK_SECRETS_DIR}/kafka-legacy-sync-service.key
+        target: /run/secrets/kafka-legacy-sync-service.key
+        read_only: true
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    container_name: courtrank-nginx
+    restart: unless-stopped
+    ports:
+      - "${API_GATEWAY_PORT:-8080}:8080"
+    environment:
+      LEGACY_BACKEND_HOST: ${LEGACY_BACKEND_HOST:?Set LEGACY_BACKEND_HOST}
+      LEGACY_BACKEND_PORT: ${LEGACY_BACKEND_PORT:-4000}
+    command:
+      - /bin/sh
+      - -c
+      - "envsubst '$$LEGACY_BACKEND_HOST $$LEGACY_BACKEND_PORT' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
+    volumes:
+      - ./nginx/prod-api.conf:/etc/nginx/templates/nginx.conf.template:ro
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      social-service:
+        condition: service_healthy
+      audit-service:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
