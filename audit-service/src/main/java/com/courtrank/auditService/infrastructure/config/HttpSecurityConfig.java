@@ -35,7 +35,14 @@ public class HttpSecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(this.csv(allowedOrigins));
         config.setAllowedMethods(List.of("GET", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Content-Type", "Authorization", "x-request-id"));
+        config.setAllowedHeaders(List.of(
+                "Content-Type",
+                "Authorization",
+                "x-api-key",
+                "x-sub-token",
+                "x-club-id",
+                "x-request-id"
+        ));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
